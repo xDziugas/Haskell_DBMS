@@ -32,3 +32,6 @@ Please edit [Lib1](src/Lib1.hs) module (only!).
 Run your application: `stack run fp2023-select-all`
 
 Run tests: `stack test`
+
+
+#test!!!!!
