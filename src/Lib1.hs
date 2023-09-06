@@ -24,10 +24,7 @@ stringLower :: String -> String
 stringLower input = map toLower input
 
 findTableByName :: Database -> String -> Maybe DataFrame
-findTableByName [] _ = Nothing
-findTableByName ((name, data) : xs) search 
-  | stringLower name == stringLower name = Just data
-  | otherwise = findTableByName xs search
+findTableByName db search = lookup (stringLower search) [(stringLower name, dat) | (name, dat) <- db]
 --findTableByName _ _ = error "findTableByName not implemented"
 
 -- 2) implement the function which parses a "select * from ..."
