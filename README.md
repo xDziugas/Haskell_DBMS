@@ -39,6 +39,3 @@ Run tests: `stack test`
 #test for the merge
 
 #another one
-
-
-padaryk
