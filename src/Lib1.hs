@@ -26,7 +26,7 @@ stringLower input = map toLower input
 findTableByName :: Database -> String -> Maybe DataFrame
 findTableByName [] _ = Nothing
 findTableByName (x : xs) name 
-  | fst x == stringLower name = Just (snd x)
+  | stringLower (fst x) == stringLower name = Just (snd x)
   | otherwise = findTableByName xs name
 --findTableByName _ _ = error "findTableByName not implemented"
 
