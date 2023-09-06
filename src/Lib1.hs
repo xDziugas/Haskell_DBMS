@@ -10,7 +10,7 @@ where
 
 import DataFrame (DataFrame)
 import InMemoryTables (TableName)
-import Data.Char
+import Data.Char (toLower)
 
 type ErrorMessage = String
 
@@ -25,9 +25,9 @@ stringLower input = map toLower input
 
 findTableByName :: Database -> String -> Maybe DataFrame
 findTableByName [] _ = Nothing
-findTableByName (x : xs) name 
-  | stringLower (fst x) == stringLower name = Just (snd x)
-  | otherwise = findTableByName xs name
+findTableByName ((name, data) : xs) search 
+  | stringLower name == stringLower name = Just data
+  | otherwise = findTableByName xs search
 --findTableByName _ _ = error "findTableByName not implemented"
 
 -- 2) implement the function which parses a "select * from ..."
