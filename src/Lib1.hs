@@ -9,7 +9,7 @@ module Lib1
 where
 
 import Data.Char (isLetter, toLower)
-import DataFrame (DataFrame)
+import DataFrame (DataFrame(..), Column(..), ColumnType(..), Value(..), Row)
 import InMemoryTables (TableName)
 
 type ErrorMessage = String
@@ -37,7 +37,25 @@ parseSelectAllStatement statement =
 -- 3) implement the function which validates tables: checks if
 -- columns match value types, if rows sizes match columns,..
 validateDataFrame :: DataFrame -> Either ErrorMessage ()
-validateDataFrame _ = error "validateDataFrame ot implemented"
+validateDataFrame (DataFrame columns rows) =
+  if all (\row -> length row == length columns) rows
+    then
+      let dataTypesMatch = all (\(columnIndex,col) -> all (\row -> checkColumnType col (row !! columnIndex)) rows) (zip [0..] columns)
+      in
+        if dataTypesMatch
+          then Right ()
+          else Left "Data types are incorrect"
+    else Left "Row lengths do not match the number of columns"
+
+checkColumnType :: Column -> Value -> Bool
+checkColumnType (Column _ columnType) value =
+  case (columnType, value) of
+    (IntegerType, IntegerValue _) -> True
+    (StringType, StringValue _) -> True
+    (BoolType, BoolValue _) -> True
+    (_, NullValue) -> True  -- Allow NullValue for any column type
+    _ -> False
+
 
 -- 4) implement the function which renders a given data frame
 -- as ascii-art table (use your imagination, there is no "correct"
