@@ -39,8 +39,22 @@ parseSelectAllStatement statement =
 validateDataFrame :: DataFrame -> Either ErrorMessage ()
 validateDataFrame (DataFrame columns rows) =
   if all (\row -> length row == length columns) rows
-    then Right ()
+    then
+      let dataTypesMatch = all (\(columnIndex,col) -> all (\row -> checkColumnType col (row !! columnIndex)) rows) (zip [0..] columns)
+      in
+        if dataTypesMatch
+          then Right ()
+          else Left "Data types are incorrect"
     else Left "Row lengths do not match the number of columns"
+
+checkColumnType :: Column -> Value -> Bool
+checkColumnType (Column _ columnType) value =
+  case (columnType, value) of
+    (IntegerType, IntegerValue _) -> True
+    (StringType, StringValue _) -> True
+    (BoolType, BoolValue _) -> True
+    _ -> False
+
 
 -- 4) implement the function which renders a given data frame
 -- as ascii-art table (use your imagination, there is no "correct"
