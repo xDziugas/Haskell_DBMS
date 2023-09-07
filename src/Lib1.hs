@@ -9,7 +9,7 @@ module Lib1
 where
 
 import Data.Char (isLetter, toLower)
-import DataFrame (DataFrame(..), Column(..), ColumnType(..), Value(..), Row)
+import DataFrame (DataFrame(..), Column(..), ColumnType(..), Value(..))
 import InMemoryTables (TableName)
 
 type ErrorMessage = String
@@ -40,9 +40,7 @@ validateDataFrame :: DataFrame -> Either ErrorMessage ()
 validateDataFrame (DataFrame columns rows) =
   if all (\row -> length row == length columns) rows
     then
-      let dataTypesMatch = all (\(columnIndex,col) -> all (\row -> checkColumnType col (row !! columnIndex)) rows) (zip [0..] columns)
-      in
-        if dataTypesMatch
+        if all (\(columnIndex,col) -> all (\row -> checkColumnType col (row !! columnIndex)) rows) (zip [0..] columns)
           then Right ()
           else Left "Data types are incorrect"
     else Left "Row lengths do not match the number of columns"
@@ -53,7 +51,7 @@ checkColumnType (Column _ columnType) value =
     (IntegerType, IntegerValue _) -> True
     (StringType, StringValue _) -> True
     (BoolType, BoolValue _) -> True
-    (_, NullValue) -> True  -- Allow NullValue for any column type
+    (_, NullValue) -> True
     _ -> False
 
 
