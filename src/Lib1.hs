@@ -37,7 +37,10 @@ parseSelectAllStatement statement =
 -- 3) implement the function which validates tables: checks if
 -- columns match value types, if rows sizes match columns,..
 validateDataFrame :: DataFrame -> Either ErrorMessage ()
-validateDataFrame _ = error "validateDataFrame ot implemented"
+validateDataFrame (DataFrame.DataFrame columns rows) =
+  if all (\row -> length row == length columns) rows
+    then Right ()
+    else Left "Row lengths do not match the number of columns"
 
 -- 4) implement the function which renders a given data frame
 -- as ascii-art table (use your imagination, there is no "correct"
