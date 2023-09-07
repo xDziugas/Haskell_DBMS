@@ -8,9 +8,9 @@ module Lib1
   )
 where
 
+import Data.Char (isLetter, toLower)
 import DataFrame (DataFrame)
 import InMemoryTables (TableName)
-import Data.Char (toLower)
 
 type ErrorMessage = String
 
@@ -18,19 +18,21 @@ type Database = [(TableName, DataFrame)]
 
 -- Your code modifications go below this comment
 
+stringLower :: String -> String
+stringLower = map toLower
+
 -- 1) implement the function which returns a data frame by its name
 -- in provided Database list
-stringLower :: String -> String
-stringLower input = map toLower input
-
 findTableByName :: Database -> String -> Maybe DataFrame
 findTableByName db search = lookup (stringLower search) [(stringLower name, dat) | (name, dat) <- db]
---findTableByName _ _ = error "findTableByName not implemented"
 
 -- 2) implement the function which parses a "select * from ..."
 -- sql statement and extracts a table name from the statement
 parseSelectAllStatement :: String -> Either ErrorMessage TableName
-parseSelectAllStatement _ = error "parseSelectAllStatement not implemented"
+parseSelectAllStatement statement =
+  case map (map toLower) (words statement) of
+    ["select", "*", "from", tableName] -> Right (filter isLetter tableName)
+    _ -> Left "Invalid select statement"
 
 -- 3) implement the function which validates tables: checks if
 -- columns match value types, if rows sizes match columns,..
