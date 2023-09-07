@@ -53,6 +53,7 @@ checkColumnType (Column _ columnType) value =
     (IntegerType, IntegerValue _) -> True
     (StringType, StringValue _) -> True
     (BoolType, BoolValue _) -> True
+    (_, NullValue) -> True  -- Allow NullValue for any column type
     _ -> False
 
 
