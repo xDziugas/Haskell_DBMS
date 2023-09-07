@@ -9,7 +9,7 @@ module Lib1
 where
 
 import Data.Char (isLetter, toLower)
-import DataFrame (DataFrame)
+import DataFrame (DataFrame(..), Column(..), ColumnType(..), Value(..), Row)
 import InMemoryTables (TableName)
 
 type ErrorMessage = String
@@ -37,7 +37,7 @@ parseSelectAllStatement statement =
 -- 3) implement the function which validates tables: checks if
 -- columns match value types, if rows sizes match columns,..
 validateDataFrame :: DataFrame -> Either ErrorMessage ()
-validateDataFrame (DataFrame.DataFrame columns rows) =
+validateDataFrame (DataFrame columns rows) =
   if all (\row -> length row == length columns) rows
     then Right ()
     else Left "Row lengths do not match the number of columns"
