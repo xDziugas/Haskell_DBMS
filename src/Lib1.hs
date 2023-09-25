@@ -8,8 +8,8 @@ module Lib1
   )
 where
 
-import Data.Char (isLetter, toLower)
-import DataFrame (DataFrame(..), Column(..), ColumnType(..), Value(..))
+import Data.Char (isLetter, isSymbol, toLower)
+import DataFrame (Column (..), ColumnType (..), DataFrame (..), Value (..))
 import InMemoryTables (TableName)
 
 type ErrorMessage = String
@@ -31,8 +31,18 @@ findTableByName db search = lookup (stringLower search) [(stringLower name, dat)
 parseSelectAllStatement :: String -> Either ErrorMessage TableName
 parseSelectAllStatement statement =
   case map (map toLower) (words statement) of
-    ["select", "*", "from", tableName] -> Right (filter isLetter tableName)
+    ["select", "*", "from", tableName] ->
+      if containsSymbol tableName
+        then Right (filter isLetter tableName) -- check if only last symbol is ;
+        else Left "Invalid select statement"
     _ -> Left "Invalid select statement"
+  where
+    containsSymbol :: String -> Bool -- check if it has any symbols
+    containsSymbol "" = False
+    containsSymbol (x : xs)
+      | x == ';' && null xs = True
+      | isSymbol x = False
+      | otherwise = containsSymbol xs
 
 -- 3) implement the function which validates tables: checks if
 -- columns match value types, if rows sizes match columns,..
@@ -40,9 +50,9 @@ validateDataFrame :: DataFrame -> Either ErrorMessage ()
 validateDataFrame (DataFrame columns rows) =
   if all (\row -> length row == length columns) rows
     then
-        if all (\(columnIndex,col) -> all (\row -> checkColumnType col (row !! columnIndex)) rows) (zip [0..] columns)
-          then Right ()
-          else Left "Data types are incorrect"
+      if all (\(columnIndex, col) -> all (\row -> checkColumnType col (row !! columnIndex)) rows) (zip [0 ..] columns)
+        then Right ()
+        else Left "Data types are incorrect"
     else Left "Row lengths do not match the number of columns"
 
 checkColumnType :: Column -> Value -> Bool
@@ -53,7 +63,6 @@ checkColumnType (Column _ columnType) value =
     (BoolType, BoolValue _) -> True
     (_, NullValue) -> True
     _ -> False
-
 
 -- 4) implement the function which renders a given data frame
 -- as ascii-art table (use your imagination, there is no "correct"
