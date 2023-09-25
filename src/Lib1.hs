@@ -18,13 +18,10 @@ type Database = [(TableName, DataFrame)]
 
 -- Your code modifications go below this comment
 
-stringLower :: String -> String
-stringLower = map toLower
-
 -- 1) implement the function which returns a data frame by its name
 -- in provided Database list
 findTableByName :: Database -> String -> Maybe DataFrame
-findTableByName db search = lookup (stringLower search) [(stringLower name, dat) | (name, dat) <- db]
+findTableByName db search = lookup (map toLower search) [(map toLower name, dat) | (name, dat) <- db]
 
 -- 2) implement the function which parses a "select * from ..."
 -- sql statement and extracts a table name from the statement
