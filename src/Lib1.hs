@@ -9,7 +9,7 @@ module Lib1
 where
 
 import Data.Char (isLetter, isSymbol, toLower)
-import DataFrame (Column (..), ColumnType (..), DataFrame (..), Value (..))
+import DataFrame (Column (..), ColumnType (..), DataFrame (..), Value (..), Row)
 import InMemoryTables (TableName)
 
 type ErrorMessage = String
@@ -68,5 +68,52 @@ checkColumnType (Column _ columnType) value =
 -- as ascii-art table (use your imagination, there is no "correct"
 -- answer for this task!), it should respect terminal
 -- width (in chars, provided as the first argument)
+
+
+valueToString :: Value -> String
+valueToString (IntegerValue x) = "| " ++ show x ++ " "
+valueToString (StringValue x)  = "| " ++ x ++ " "
+valueToString (BoolValue x)    = "| " ++ show x ++ " "
+valueToString NullValue        = "| NULL "
+
+truncateName :: Integer -> String -> String
+truncateName maxWidth name
+  | length name > fromIntegral maxWidth =
+       let
+         excessWidth = length name - fromIntegral maxWidth + 3
+         truncatedName = take (length name - excessWidth) name
+       in
+         truncatedName ++ ".. "
+  |  otherwise =
+      let
+         paddingWidth = fromIntegral maxWidth - length name
+         paddedName = name ++ replicate paddingWidth ' '
+      in
+         paddedName
+
+
 renderDataFrameAsTable :: Integer -> DataFrame -> String
-renderDataFrameAsTable _ _ = error "renderDataFrameAsTable not implemented"
+renderDataFrameAsTable width (DataFrame columns rows) =
+  let
+
+    numColumns = length columns
+
+    columnWidth = width `div` fromIntegral numColumns
+
+    columnNamesWithSeparator = map (\(Column name _) -> "| " ++ name ++ " ") columns
+
+    truncatedColumnNames = map (\name -> truncateName columnWidth name) columnNamesWithSeparator
+    
+    dataRows = map renderRow rows
+
+    tableContent = [horizontalLine] ++ [concat truncatedColumnNames] ++ [horizontalLine] ++
+                   concatMap (\row -> [concat row, horizontalLine]) dataRows
+
+    renderRow :: Row -> [String]
+    renderRow row = map (truncateName columnWidth  . valueToString) row
+
+    horizontalLine :: String
+    horizontalLine = replicate (fromIntegral width) '-'
+
+  in
+    unlines tableContent
