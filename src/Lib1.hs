@@ -40,7 +40,7 @@ parseSelectAllStatement statement =
             else Left "Invalid select statement"
     _ -> Left "Invalid select statement"
   where
-    isValidName :: String -> Bool -- check if it has any symbols ((isSymbol x = False) && (isNumber x || x = '_'))
+    isValidName :: String -> Bool
     isValidName name =
       not (null name) && isAlphaOrUnderscore (head name) && all isAlphaNumOrUnderscore (tail name)
       where
