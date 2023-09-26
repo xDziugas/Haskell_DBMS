@@ -8,7 +8,7 @@ module Lib1
   )
 where
 
-import Data.Char (isLetter, isSymbol, toLower)
+import Data.Char (isAlpha, isAlphaNum, isLetter, isNumber, isSymbol, toLower)
 import DataFrame (Column (..), ColumnType (..), DataFrame (..), Value (..))
 import InMemoryTables (TableName)
 
@@ -32,17 +32,25 @@ parseSelectAllStatement :: String -> Either ErrorMessage TableName
 parseSelectAllStatement statement =
   case map (map toLower) (words statement) of
     ["select", "*", "from", tableName] ->
-      if containsSymbol tableName
-        then Right (filter isLetter tableName) -- check if only last symbol is ;
-        else Left "Invalid select statement"
+      if last tableName == ';'
+        then
+          if isValidName (init tableName)
+            then Right (init tableName)
+            else Left "Invalid select statement"
+        else
+          if isValidName tableName
+            then Right tableName
+            else Left "Invalid select statement"
     _ -> Left "Invalid select statement"
   where
-    containsSymbol :: String -> Bool -- check if it has any symbols
-    containsSymbol "" = False
-    containsSymbol (x : xs)
-      | x == ';' && null xs = True
-      | isSymbol x = False
-      | otherwise = containsSymbol xs
+    isValidName :: String -> Bool -- check if it has any symbols ((isSymbol x = False) && (isNumber x || x = '_'))
+    isValidName name =
+      not (null name) && isAlphaOrUnderscore (head name) && all isAlphaNumOrUnderscore (tail name)
+      where
+        isAlphaNumOrUnderscore :: Char -> Bool
+        isAlphaNumOrUnderscore c = isAlphaNum c || c == '_'
+        isAlphaOrUnderscore :: Char -> Bool
+        isAlphaOrUnderscore c = isAlpha c || c == '_'
 
 -- 3) implement the function which validates tables: checks if
 -- columns match value types, if rows sizes match columns,..
