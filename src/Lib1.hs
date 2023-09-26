@@ -8,8 +8,8 @@ module Lib1
   )
 where
 
-import Data.Char (isLetter, isSymbol, toLower)
-import DataFrame (Column (..), ColumnType (..), DataFrame (..), Value (..), Row)
+import Data.Char (isAlpha, isAlphaNum, toLower)
+import DataFrame (Column (..), ColumnType (..), DataFrame (..), Row, Value (..))
 import InMemoryTables (TableName)
 
 type ErrorMessage = String
@@ -29,17 +29,25 @@ parseSelectAllStatement :: String -> Either ErrorMessage TableName
 parseSelectAllStatement statement =
   case map (map toLower) (words statement) of
     ["select", "*", "from", tableName] ->
-      if containsSymbol tableName
-        then Right (filter isLetter tableName) -- check if only last symbol is ;
-        else Left "Invalid select statement"
+      if last tableName == ';'
+        then
+          if isValidName (init tableName)
+            then Right (init tableName)
+            else Left "Invalid select statement"
+        else
+          if isValidName tableName
+            then Right tableName
+            else Left "Invalid select statement"
     _ -> Left "Invalid select statement"
   where
-    containsSymbol :: String -> Bool -- check if it has any symbols
-    containsSymbol "" = False
-    containsSymbol (x : xs)
-      | x == ';' && null xs = True
-      | isSymbol x = False
-      | otherwise = containsSymbol xs
+    isValidName :: String -> Bool -- check if it has any symbols ((isSymbol x = False) && (isNumber x || x = '_'))
+    isValidName name =
+      not (null name) && isAlphaOrUnderscore (head name) && all isAlphaNumOrUnderscore (tail name)
+      where
+        isAlphaNumOrUnderscore :: Char -> Bool
+        isAlphaNumOrUnderscore c = isAlphaNum c || c == '_'
+        isAlphaOrUnderscore :: Char -> Bool
+        isAlphaOrUnderscore c = isAlpha c || c == '_'
 
 -- 3) implement the function which validates tables: checks if
 -- columns match value types, if rows sizes match columns,..
@@ -67,53 +75,44 @@ checkColumnType (Column _ columnType) value =
 -- answer for this task!), it should respect terminal
 -- width (in chars, provided as the first argument)
 
-
 valueToString :: Value -> String
 valueToString (IntegerValue x) = "| " ++ show x ++ " "
-valueToString (StringValue x)  = "| " ++ x ++ " "
-valueToString (BoolValue x)    = "| " ++ show x ++ " "
-valueToString NullValue        = "| NULL "
+valueToString (StringValue x) = "| " ++ x ++ " "
+valueToString (BoolValue x) = "| " ++ show x ++ " "
+valueToString NullValue = "| NULL "
 
 truncateName :: Integer -> String -> String
 truncateName maxWidth name
   | length name > fromIntegral maxWidth =
-       let
-         excessWidth = length name - fromIntegral maxWidth + 3
-         truncatedName = take (length name - excessWidth) name
-       in
-         truncatedName ++ ".. "
-  |  otherwise =
-      let
-         paddingWidth = fromIntegral maxWidth - length name
-         paddedName = name ++ replicate paddingWidth ' '
-      in
-         paddedName
-
+      let excessWidth = length name - fromIntegral maxWidth + 3
+          truncatedName = take (length name - excessWidth) name
+       in truncatedName ++ ".. "
+  | otherwise =
+      let paddingWidth = fromIntegral maxWidth - length name
+          paddedName = name ++ replicate paddingWidth ' '
+       in paddedName
 
 renderDataFrameAsTable :: Integer -> DataFrame -> String
 renderDataFrameAsTable width (DataFrame columns rows) =
-  let
+  let numColumns = length columns
 
-    numColumns = length columns
+      columnWidth = width `div` fromIntegral numColumns
 
-    columnWidth = width `div` fromIntegral numColumns
+      columnNamesWithSeparator = map (\(Column name _) -> "| " ++ name ++ " ") columns
 
-    columnNamesWithSeparator = map (\(Column name _) -> "| " ++ name ++ " ") columns
+      truncatedColumnNames = map (\name -> truncateName columnWidth name) columnNamesWithSeparator
 
-    truncatedColumnNames = map (\name -> truncateName columnWidth name) columnNamesWithSeparator
-    
-    dataRows = map renderRow rows
+      dataRows = map renderRow rows
 
-    tableContent = [horizontalLine] ++ [concat truncatedColumnNames] ++ [horizontalLine] ++
-                   concatMap (\row -> [concat row, horizontalLine]) dataRows
+      tableContent =
+        [horizontalLine]
+          ++ [concat truncatedColumnNames]
+          ++ [horizontalLine]
+          ++ concatMap (\row -> [concat row, horizontalLine]) dataRows
 
-    renderRow :: Row -> [String]
-    renderRow row = map (truncateName columnWidth  . valueToString) row
+      renderRow :: Row -> [String]
+      renderRow row = map (truncateName columnWidth . valueToString) row
 
-    horizontalLine :: String
-    horizontalLine = replicate (fromIntegral width) '-'
-
-  in
-    unlines tableContent
-    
-
+      horizontalLine :: String
+      horizontalLine = replicate (fromIntegral width) '-'
+   in unlines tableContent
