@@ -7,9 +7,10 @@ module Lib2
   )
 where
 
-import DataFrame (DataFrame)
-import InMemoryTables (TableName)
+import DataFrame (Column (..), ColumnType (..), Value (..), DataFrame (..))
+import InMemoryTables (TableName, database)
 import Data.Char (toLower, isAlphaNum)
+import Lib1 (renderDataFrameAsTable)
 
 type ErrorMessage = String
 type Database = [(TableName, DataFrame)]
@@ -57,21 +58,21 @@ parseSelectStatement input =
   let (columns, rest) = span (not . isFrom) input
       fromKeyword = map toLower (if null rest then "" else rest !! 0)
       whereKeyword = map toLower (rest !! 2)
-      conditions = drop 3 rest  
+      conditions = drop 3 rest
       tableName = rest !! 1
   in
   if fromKeyword == "from"
     then do
-      parsedColumns <- parseColumns  (unwords columns) 
+      parsedColumns <- parseColumns  (unwords columns)
       if length rest == 2
         then
           Right (Select parsedColumns tableName [])
-      else if whereKeyword == "where" && (length rest) >= 6 
+      else if whereKeyword == "where" && (length rest) >= 6
         then do
           parsedConditions <- parseConditions conditions parsedColumns
           Right (Select parsedColumns tableName parsedConditions)
       else
-        Left "Invalid select statement: the keyword WHERE is not writen in the appropriate position or the condition in the WHERE clause is not valid" 
+        Left "Invalid select statement: the keyword WHERE is not writen in the appropriate position or the condition in the WHERE clause is not valid"
     else
       Left "Invalid select statement: the keyword FROM is not writen in the appropriate position"
 
@@ -92,7 +93,7 @@ parseColumns input = do
   return colNameStructures
 
 splitColNames :: String -> [String]
-splitColNames input = customSplit ',' input 
+splitColNames input = customSplit ',' input
 
 customSplit :: Char -> String -> [String]
 customSplit _ [] = [""]
@@ -124,7 +125,7 @@ containsOnlyLettersAndNumbers = all isAlphaNum
 
 parseConditions :: [String] -> [ColumnName] -> Either ErrorMessage [Condition]
 parseConditions [] columns = Right []
-parseConditions input columns = 
+parseConditions input columns =
     case break (\x -> (map toLower x) == "and") input of
       (conditionTokens, andKeyword : rest) -> do
         condition <- parseToken conditionTokens columns
@@ -138,7 +139,7 @@ parseToken :: [String] -> [ColumnName] -> Either ErrorMessage Condition
 parseToken (colName : op : value : []) parsedColumns
     | not (matchesAnyInList colName parsedColumns) && not (matchesAnyInList value parsedColumns) = Left "Invalid column name inside a condition"
     | (matchesAnyInList colName parsedColumns) && (matchesAnyInList value parsedColumns) = Left "Cant do operations with two columns"
-    | otherwise = 
+    | otherwise =
         case findColumnsPosition colName value parsedColumns of
               (ColumnName name _, validVal) ->
                   case op of
@@ -168,7 +169,22 @@ findColumnsPosition colName value parsedColumns
     | matchesAnyInList colName parsedColumns && not (matchesAnyInList value parsedColumns) = (ColumnName colName Nothing, value)
     | not (matchesAnyInList colName parsedColumns) && matchesAnyInList value parsedColumns = (ColumnName value Nothing, colName)
 
+
+
 -- Executes a parsed statemet. Produces a DataFrame. Uses
 -- InMemoryTables.databases a source of data.
+-- Right (Select [ColumnName "miau" Nothing] "woof" [LessThan (ColumnName "miau" Nothing) "2"])
 executeStatement :: ParsedStatement -> Either ErrorMessage DataFrame
-executeStatement _ = Left "Not implemented: executeStatement"
+executeStatement ShowTables =
+  let tableNames = map fst database
+      columns = [Column "Table Names" StringType]
+      rows = map (\name -> [StringValue name]) tableNames
+  in Right (DataFrame columns rows)
+
+
+executeStatement (ShowTable tableName) = 
+  case lookup tableName database of
+    Nothing -> Left $ "Table with name \"" ++ tableName ++ "\" not found"
+    Just dataFrame -> Right dataFrame
+
+executeStatement (Select columnNames tableName conditions) = Left "Not implemented"
