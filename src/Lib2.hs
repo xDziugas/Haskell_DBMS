@@ -7,7 +7,7 @@ module Lib2
   )
 where
 
-import DataFrame (Column (..), ColumnType (..), Value (..), DataFrame (..))
+import DataFrame (Column (..), ColumnType (..), Value (..), DataFrame (..), Row)
 import InMemoryTables (TableName, database)
 import Data.Char (toLower, isAlphaNum)
 import Lib1 (renderDataFrameAsTable)
@@ -173,7 +173,9 @@ findColumnsPosition colName value parsedColumns
 
 -- Executes a parsed statemet. Produces a DataFrame. Uses
 -- InMemoryTables.databases a source of data.
--- Right (Select [ColumnName "miau" Nothing] "woof" [LessThan (ColumnName "miau" Nothing) "2"])
+-- Right (Select [ColumnName "col1" (Just Min)] "table" [GreaterThan (ColumnName "col1" Nothing) "2"])
+-- Right (Select [ColumnName "id" Nothing] "employees" [])
+test = Select [ColumnName "id" Nothing] "employees" [GreaterThan (ColumnName "id" Nothing) "1"]
 executeStatement :: ParsedStatement -> Either ErrorMessage DataFrame
 executeStatement ShowTables =
   let tableNames = map fst database
@@ -182,9 +184,122 @@ executeStatement ShowTables =
   in Right (DataFrame columns rows)
 
 
-executeStatement (ShowTable tableName) = 
+executeStatement (ShowTable tableName) =
   case lookup tableName database of
-    Nothing -> Left $ "Table with name \"" ++ tableName ++ "\" not found"
+    Nothing -> Left $ "Table with name " ++ tableName ++ " not found"
     Just dataFrame -> Right dataFrame
 
-executeStatement (Select columnNames tableName conditions) = Left "Not implemented"
+
+executeStatement (Select columnNames tableName conditions) =
+  case lookup tableName database of
+    Just tableData -> do
+      let withSelectedColumns = selectColumns tableData columnNames
+          withFilteredColumns = filterRows withSelectedColumns conditions
+      return withSelectedColumns
+    Nothing -> Left $ "Table with name " ++ tableName ++ " not found"
+
+
+selectColumns :: DataFrame -> [ColumnName] -> DataFrame
+selectColumns (DataFrame dataColumns dataRows) parsedColumns =
+  let selectedColumnIndexes = myMapMaybe (\(ColumnName colName _) -> getColumnIndex colName dataColumns) parsedColumns
+      selectedColumns = [dataColumns !! idx | idx <- selectedColumnIndexes]
+      selectedRows = map (\row -> [row !! idx | idx <- selectedColumnIndexes]) dataRows
+  in  DataFrame selectedColumns selectedRows
+
+
+filterRows :: DataFrame -> [Condition] -> DataFrame
+filterRows (DataFrame dataColumns dataRows) conditions =
+  let
+    evaluateCondition :: Row -> Condition -> Bool
+    evaluateCondition row (Equals (ColumnName colName _) value) =
+      case getColumnIndex colName dataColumns of
+        Just index -> case row !! index of
+          StringValue s -> s == value
+          IntegerValue i -> i == read value
+          _ -> False
+        Nothing -> False
+    evaluateCondition row (LessThan (ColumnName colName _) value) =
+      case getColumnIndex colName dataColumns of
+        Just index -> case row !! index of
+          IntegerValue i -> i < read value
+          _ -> False
+        Nothing -> False
+    evaluateCondition row (GreaterThan (ColumnName colName _) value) =
+      case getColumnIndex colName dataColumns of
+        Just index -> case row !! index of
+          IntegerValue i -> i > read value
+          _ -> False
+        Nothing -> False
+    evaluateCondition row (LessEqualThan (ColumnName colName _) value) =
+      case getColumnIndex colName dataColumns of
+        Just index -> case row !! index of
+          IntegerValue i -> i <= read value
+          _ -> False
+        Nothing -> False
+    evaluateCondition row (GreaterEqualThan (ColumnName colName _) value) =
+      case getColumnIndex colName dataColumns of
+        Just index -> case row !! index of
+          IntegerValue i -> i >= read value
+          _ -> False
+        Nothing -> False
+
+    filteredRows = filter (\row -> all (evaluateCondition row) conditions) dataRows
+
+  in DataFrame dataColumns filteredRows
+
+getColumnIndex :: String -> [Column] -> Maybe Int
+getColumnIndex targetName columns =
+  let
+    indexedColumns = zip (map (\(Column name _) -> name) columns) [0..]
+  in
+    lookup targetName indexedColumns
+
+myMapMaybe :: (a -> Maybe b) -> [a] -> [b]
+myMapMaybe _ []     = []
+myMapMaybe f (x:xs) =
+ let rs = myMapMaybe f xs in
+ case f x of
+  Nothing -> rs
+  Just r  -> r:rs
+
+
+
+-- data ColumnName = ColumnName String (Maybe Condition)
+--   deriving (Show, Eq)-- data Condition
+--   = Equals ColumnName String
+--   | LessThan ColumnName String
+--   | GreaterThan ColumnName String
+--   | LessEqualThan ColumnName String
+--   | GreaterEqualThan ColumnName String
+--   | Min
+--   | Avg
+--   deriving (Show, Eq)
+
+-- data ParsedStatement
+--   = ShowTables
+--   | ShowTable String
+--   | Select [ColumnName] TableName [Condition]
+--   deriving (Show, Eq)
+
+-- module DataFrame (Column (..), ColumnType (..), Value (..), Row, DataFrame (..)) where
+
+-- data ColumnType
+--   = IntegerType
+--   | StringType
+--   | BoolType
+--   deriving (Show, Eq)
+
+-- data Column = Column String ColumnType
+--   deriving (Show, Eq)
+
+-- data Value
+--   = IntegerValue Integer
+--   | StringValue String
+--   | BoolValue Bool
+--   | NullValue
+--   deriving (Show, Eq)
+
+-- type Row = [Value]
+
+-- data DataFrame = DataFrame [Column] [Row]
+--   deriving (Show, Eq)
