@@ -13,6 +13,7 @@ import DataFrame (Column (..), ColumnType (..), Value (..), DataFrame (..), Row(
 import InMemoryTables (TableName, database)
 import Data.Char (toLower, isAlphaNum)
 import Lib1 (renderDataFrameAsTable)
+import Data.Maybe (isJust)
 
 type ErrorMessage = String
 type Database = [(TableName, DataFrame)]
@@ -58,28 +59,51 @@ parseShowStatement (secondWord : remaining) = case map toLower secondWord of
 parseSelectStatement :: [String] -> Either ErrorMessage ParsedStatement
 parseSelectStatement input =
   let (columns, rest) = span (not . isFrom) input
+      columnsUnworded = unwords(columns)
       fromKeyword = map toLower (if null rest then "" else rest !! 0)
       whereKeyword = map toLower (rest !! 2)
-      conditions = drop 3 rest
+      conditions = drop 3 rest  
       tableName = rest !! 1
   in
-  if fromKeyword == "from"
-    then do
-      parsedColumns <- parseColumns  (unwords columns)
+  if (fromKeyword == "from")
+    then do    
+      existingColumns <- getAllColumns tableName
+      parsedColumns <- (if (checkForAsterix (words columnsUnworded)) then return [ColumnName "*" Nothing] else parseColumns columnsUnworded)
+      initializer <- checkColumnConditions parsedColumns 
       if length rest == 2
         then
           Right (Select parsedColumns tableName [])
-      else if whereKeyword == "where" && (length rest) >= 6
+      else if whereKeyword == "where" && (length rest) >= 6 
         then do
-          parsedConditions <- parseConditions conditions parsedColumns
+          parsedConditions <- parseConditions conditions existingColumns
           Right (Select parsedColumns tableName parsedConditions)
       else
-        Left "Invalid select statement: the keyword WHERE is not writen in the appropriate position or the condition in the WHERE clause is not valid"
-    else
-      Left "Invalid select statement: the keyword FROM is not writen in the appropriate position"
+        Left "Invalid select statement: the keyword WHERE is not writen in the appropriate position or the condition in the WHERE clause is not valid" 
+  else
+    Left "Invalid select statement: the keyword FROM is not writen in the appropriate position"
 
 isFrom :: String -> Bool
 isFrom word = map toLower word == "from"
+
+getAllColumns :: String -> Either ErrorMessage [ColumnName]
+getAllColumns tableName =
+   case lookup tableName database of
+    Nothing -> Left "no table found by that name"
+    Just table ->  Right $ (\(DataFrame columns _) -> map (\(Column name _) -> ColumnName name Nothing) columns) table
+
+checkForAsterix :: [String] -> Bool 
+checkForAsterix ["*"] = True
+checkForAsterix _ = False
+
+checkColumnConditions :: [ColumnName] -> Either ErrorMessage [a]
+checkColumnConditions colNames =
+  case filter hasCondition colNames of
+    [] -> Right []
+    [singleCol] -> if length colNames == 1 then Right ([]) else Left "Invalid select statement: multiple columnNames, when there's an aggregate function used"
+    _ -> Left "Invalid select statement: Multiple columns with aggregates"
+
+hasCondition :: ColumnName -> Bool
+hasCondition (ColumnName _ condition) = isJust condition
 
 
 
@@ -95,7 +119,7 @@ parseColumns input = do
   return colNameStructures
 
 splitColNames :: String -> [String]
-splitColNames input = customSplit ',' input
+splitColNames input = customSplit ',' input 
 
 customSplit :: Char -> String -> [String]
 customSplit _ [] = [""]
@@ -125,9 +149,12 @@ containsOnlyLettersAndNumbers = all isAlphaNum
 
 
 
+
+
+
 parseConditions :: [String] -> [ColumnName] -> Either ErrorMessage [Condition]
 parseConditions [] columns = Right []
-parseConditions input columns =
+parseConditions input columns = 
     case break (\x -> (map toLower x) == "and") input of
       (conditionTokens, andKeyword : rest) -> do
         condition <- parseToken conditionTokens columns
@@ -141,7 +168,7 @@ parseToken :: [String] -> [ColumnName] -> Either ErrorMessage Condition
 parseToken (colName : op : value : []) parsedColumns
     | not (matchesAnyInList colName parsedColumns) && not (matchesAnyInList value parsedColumns) = Left "Invalid column name inside a condition"
     | (matchesAnyInList colName parsedColumns) && (matchesAnyInList value parsedColumns) = Left "Cant do operations with two columns"
-    | otherwise =
+    | otherwise = 
         case findColumnsPosition colName value parsedColumns of
               (ColumnName name _, validVal) ->
                   case op of
@@ -196,24 +223,22 @@ executeStatement (ShowTable tableName) =
 executeStatement (Select columnNames tableName conditions) =
   case lookup tableName database of
     Just tableData -> do
-      let columnNames = checkForStar columnNames tableName
-          withSelectedColumns = selectColumns tableData columnNames
+      let withSelectedColumns = selectColumns tableData columnNames
           withFilteredColumns = filterRows withSelectedColumns conditions
           withAgregates = handleAggregate withFilteredColumns columnNames
       return withAgregates
     Nothing -> Left $ "Table with name " ++ tableName ++ " was not found"
 
-checkForStar :: [ColumnName] -> String -> [ColumnName]
-checkForStar columnNames tableName = 
+checkForStar :: [ColumnName] -> [Column] -> [ColumnName]
+checkForStar columnNames columns = 
   case (\(ColumnName name _) -> name) $ head columnNames of
-    "*" -> 
-      let dataFrame = (\(Just df) -> df) $ lookup tableName database
-      in  (\(DataFrame column _) -> map (\(Column name _) -> ColumnName name Nothing) column) dataFrame
+    "*" -> map (\(Column name _) -> ColumnName name Nothing) columns
     _ -> columnNames
 
 selectColumns :: DataFrame -> [ColumnName] -> DataFrame
 selectColumns (DataFrame dataColumns dataRows) parsedColumns =
-  let selectedColumnIndexes = myMapMaybe (\(ColumnName colName _) -> getColumnIndex colName dataColumns) parsedColumns
+  let checkedColumns = checkForStar parsedColumns dataColumns
+      selectedColumnIndexes = myMapMaybe (\(ColumnName colName _) -> getColumnIndex colName dataColumns) checkedColumns
       selectedColumns = [dataColumns !! idx | idx <- selectedColumnIndexes]
       selectedRows = map (\row -> [row !! idx | idx <- selectedColumnIndexes]) dataRows
   in  DataFrame selectedColumns selectedRows
