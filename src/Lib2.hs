@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use lambda-case" #-}
 
 module Lib2
   ( parseStatement,
@@ -7,7 +9,7 @@ module Lib2
   )
 where
 
-import DataFrame (Column (..), ColumnType (..), Value (..), DataFrame (..), Row)
+import DataFrame (Column (..), ColumnType (..), Value (..), DataFrame (..), Row(..))
 import InMemoryTables (TableName, database)
 import Data.Char (toLower, isAlphaNum)
 import Lib1 (renderDataFrameAsTable)
@@ -175,6 +177,7 @@ findColumnsPosition colName value parsedColumns
 -- InMemoryTables.databases a source of data.
 -- Right (Select [ColumnName "col1" (Just Min)] "table" [GreaterThan (ColumnName "col1" Nothing) "2"])
 -- Right (Select [ColumnName "id" Nothing] "employees" [])
+
 test = Select [ColumnName "id" Nothing] "employees" [GreaterThan (ColumnName "id" Nothing) "1"]
 executeStatement :: ParsedStatement -> Either ErrorMessage DataFrame
 executeStatement ShowTables =
@@ -193,11 +196,20 @@ executeStatement (ShowTable tableName) =
 executeStatement (Select columnNames tableName conditions) =
   case lookup tableName database of
     Just tableData -> do
-      let withSelectedColumns = selectColumns tableData columnNames
+      let columnNames = checkForStar columnNames tableName
+          withSelectedColumns = selectColumns tableData columnNames
           withFilteredColumns = filterRows withSelectedColumns conditions
-      return withFilteredColumns
+          withAgregates = handleAggregate withFilteredColumns columnNames
+      return withAgregates
     Nothing -> Left $ "Table with name " ++ tableName ++ " was not found"
 
+checkForStar :: [ColumnName] -> String -> [ColumnName]
+checkForStar columnNames tableName = 
+  case (\(ColumnName name _) -> name) $ head columnNames of
+    "*" -> 
+      let dataFrame = (\(Just df) -> df) $ lookup tableName database
+      in  (\(DataFrame column _) -> map (\(Column name _) -> ColumnName name Nothing) column) dataFrame
+    _ -> columnNames
 
 selectColumns :: DataFrame -> [ColumnName] -> DataFrame
 selectColumns (DataFrame dataColumns dataRows) parsedColumns =
@@ -247,6 +259,65 @@ filterRows (DataFrame dataColumns dataRows) conditions =
 
   in DataFrame dataColumns filteredRows
 
+handleAggregate :: DataFrame -> [ColumnName] -> DataFrame
+handleAggregate (DataFrame dataColumns dataRows) parsedColumns =
+  let containsAggregate = any isAggregate parsedColumns
+
+      isAggregate (ColumnName _ (Just Min)) = True
+      isAggregate (ColumnName _ (Just Avg)) = True
+      isAggregate _ = False
+
+  in if not containsAggregate
+    then DataFrame dataColumns dataRows
+    else
+      let
+        applyMin :: [Value] -> Value
+        applyMin [] = NullValue
+        applyMin (x:xs) = myMin x xs
+
+        myMin :: Value -> [Value] -> Value
+        myMin currentMin [] = currentMin
+        myMin (IntegerValue a) (IntegerValue b : rest) = myMin (IntegerValue (min a b)) rest
+        myMin currentMin (_ : rest) = myMin currentMin rest
+
+        applyAvg :: [Value] -> Value
+        applyAvg [] = NullValue
+        applyAvg values =
+          let (sumValue, count) =
+                foldl (\(sm, cnt) value ->
+                  case value of
+                    IntegerValue i -> (sm + i, cnt + 1)
+                    _ -> (sm, cnt)
+                ) (0, 0) values
+          in if count > 0
+            then IntegerValue (sumValue `div` count)
+            else NullValue
+
+        -- Helper function to determine the value type of a Value
+        getValueType (IntegerValue _) = IntegerType
+        getValueType (StringValue _) = StringType
+        getValueType (BoolValue _) = BoolType
+        getValueType NullValue = StringType -- Default to StringType for Null
+
+
+      in case head parsedColumns of
+            ColumnName name (Just Min) ->
+              let
+                columnIndex = (\(Just index) -> index) $ getColumnIndex name dataColumns
+                values = map (!! columnIndex) dataRows
+                aggregateValue = applyMin values
+              in
+                DataFrame [Column "minimum" (getValueType aggregateValue)] [[aggregateValue]]
+            ColumnName name (Just Avg) ->
+              let
+                columnIndex = (\(Just index) -> index) $ getColumnIndex name dataColumns
+                values = map (!! columnIndex) dataRows
+                aggregateValue = applyAvg values
+              in
+                DataFrame [Column "average" (getValueType aggregateValue)] [[aggregateValue]]
+
+
+
 getColumnIndex :: String -> [Column] -> Maybe Int
 getColumnIndex targetName columns =
   let
@@ -265,7 +336,8 @@ myMapMaybe f (x:xs) =
 
 
 -- data ColumnName = ColumnName String (Maybe Condition)
---   deriving (Show, Eq)-- data Condition
+--   deriving (Show, Eq)
+-- data Condition
 --   = Equals ColumnName String
 --   | LessThan ColumnName String
 --   | GreaterThan ColumnName String
@@ -280,6 +352,9 @@ myMapMaybe f (x:xs) =
 --   | ShowTable String
 --   | Select [ColumnName] TableName [Condition]
 --   deriving (Show, Eq)
+
+
+
 
 -- module DataFrame (Column (..), ColumnType (..), Value (..), Row, DataFrame (..)) where
 
