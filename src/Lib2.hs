@@ -186,7 +186,7 @@ executeStatement ShowTables =
 
 executeStatement (ShowTable tableName) =
   case lookup tableName database of
-    Nothing -> Left $ "Table with name " ++ tableName ++ " not found"
+    Nothing -> Left $ "Table with name " ++ tableName ++ " was not found"
     Just dataFrame -> Right dataFrame
 
 
@@ -195,8 +195,8 @@ executeStatement (Select columnNames tableName conditions) =
     Just tableData -> do
       let withSelectedColumns = selectColumns tableData columnNames
           withFilteredColumns = filterRows withSelectedColumns conditions
-      return withSelectedColumns
-    Nothing -> Left $ "Table with name " ++ tableName ++ " not found"
+      return withFilteredColumns
+    Nothing -> Left $ "Table with name " ++ tableName ++ " was not found"
 
 
 selectColumns :: DataFrame -> [ColumnName] -> DataFrame
