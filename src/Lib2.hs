@@ -7,9 +7,12 @@ module Lib2
   )
 where
 
-import DataFrame (DataFrame)
-import InMemoryTables (TableName)
+import DataFrame (Column (..), DataFrame(..))
+import InMemoryTables (TableName, database)
 import Data.Char (toLower, isAlphaNum)
+import Lib1 (findTableByName)
+import Data.Maybe (isJust)
+
 
 type ErrorMessage = String
 type Database = [(TableName, DataFrame)]
@@ -55,28 +58,51 @@ parseShowStatement (secondWord : remaining) = case map toLower secondWord of
 parseSelectStatement :: [String] -> Either ErrorMessage ParsedStatement
 parseSelectStatement input =
   let (columns, rest) = span (not . isFrom) input
+      columnsUnworded = unwords(columns)
       fromKeyword = map toLower (if null rest then "" else rest !! 0)
       whereKeyword = map toLower (rest !! 2)
       conditions = drop 3 rest  
       tableName = rest !! 1
   in
-  if fromKeyword == "from"
-    then do
-      parsedColumns <- parseColumns  (unwords columns) 
+  if (fromKeyword == "from")
+    then do    
+      existingColumns <- getAllColumns tableName
+      parsedColumns <- (if (checkForAsterix (words columnsUnworded)) then return [ColumnName "*" Nothing] else parseColumns columnsUnworded)
+      initializer <- checkColumnConditions parsedColumns 
       if length rest == 2
         then
           Right (Select parsedColumns tableName [])
       else if whereKeyword == "where" && (length rest) >= 6 
         then do
-          parsedConditions <- parseConditions conditions parsedColumns
+          parsedConditions <- parseConditions conditions existingColumns
           Right (Select parsedColumns tableName parsedConditions)
       else
         Left "Invalid select statement: the keyword WHERE is not writen in the appropriate position or the condition in the WHERE clause is not valid" 
-    else
-      Left "Invalid select statement: the keyword FROM is not writen in the appropriate position"
+  else
+    Left "Invalid select statement: the keyword FROM is not writen in the appropriate position"
 
 isFrom :: String -> Bool
 isFrom word = map toLower word == "from"
+
+getAllColumns :: String -> Either ErrorMessage [ColumnName]
+getAllColumns tableName =
+   case lookup tableName database of
+    Nothing -> Left "no table found by that name"
+    Just table ->  Right $ (\(DataFrame columns _) -> map (\(Column name _) -> ColumnName name Nothing) columns) table
+
+checkForAsterix :: [String] -> Bool 
+checkForAsterix ["*"] = True
+checkForAsterix _ = False
+
+checkColumnConditions :: [ColumnName] -> Either ErrorMessage [a]
+checkColumnConditions colNames =
+  case filter hasCondition colNames of
+    [] -> Right []
+    [singleCol] -> if length colNames == 1 then Right ([]) else Left "Invalid select statement: multiple columnNames, when there's an aggregate function used"
+    _ -> Left "Invalid select statement: Multiple columns with aggregates"
+
+hasCondition :: ColumnName -> Bool
+hasCondition (ColumnName _ condition) = isJust condition
 
 
 
@@ -116,6 +142,9 @@ constructColumnName _ = Left "Invalid column name structure"
 
 containsOnlyLettersAndNumbers :: String -> Bool
 containsOnlyLettersAndNumbers = all isAlphaNum
+
+
+
 
 
 
@@ -167,6 +196,12 @@ findColumnsPosition :: String -> String -> [ColumnName] -> (ColumnName, String)
 findColumnsPosition colName value parsedColumns
     | matchesAnyInList colName parsedColumns && not (matchesAnyInList value parsedColumns) = (ColumnName colName Nothing, value)
     | not (matchesAnyInList colName parsedColumns) && matchesAnyInList value parsedColumns = (ColumnName value Nothing, colName)
+
+
+
+
+
+
 
 -- Executes a parsed statemet. Produces a DataFrame. Uses
 -- InMemoryTables.databases a source of data.
