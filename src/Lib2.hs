@@ -120,7 +120,7 @@ parseColumns input columns = do
   let colNames = splitColNames input
   colNameStructures <- traverse constructColumnName (map words colNames)
   let columnStrings = map (\(ColumnName name _) -> name) colNameStructures
-  let hasErrors = any (\s -> not (matchesAnyInList s columns)) columnStrings
+      hasErrors = any (\s -> not (matchesAnyInList s columns)) columnStrings
   if hasErrors
     then Left "Invalid select statement: the provided column names are not part of the given table"
     else Right colNameStructures
