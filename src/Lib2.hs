@@ -5,6 +5,8 @@
 module Lib2
   ( parseStatement,
     ParsedStatement (..),
+    ColumnName (..),
+    Condition(..),
     executeStatement
   )
 where
@@ -49,7 +51,9 @@ parseStatement input = case words input of
 parseShowStatement :: [String] -> Either ErrorMessage ParsedStatement
 parseShowStatement [] = Left "Invalid show statement: after SHOW keyword no keyword TABLE or TABLES was found"
 parseShowStatement (secondWord : remaining) = case map toLower secondWord of
-  "tables" -> Right ShowTables
+  "tables" -> case length remaining of
+    0 -> Right ShowTables
+    _ -> Left "Invalid show statement"
   "table" -> case remaining of
     [tableName] -> Right (ShowTable tableName)
     _ -> Left "Invalid show statement: there can only be one table"
@@ -62,13 +66,13 @@ parseSelectStatement input =
       columnsUnworded = unwords(columns)
       fromKeyword = map toLower (if null rest then "" else rest !! 0)
       whereKeyword = map toLower (rest !! 2)
-      conditions = drop 3 rest  
+      conditions = drop 3 rest
       tableName = rest !! 1
   in
   if (fromKeyword == "from")
     then do    
       existingColumns <- getAllColumns tableName
-      parsedColumns <- (if (checkForAsterix (words columnsUnworded)) then return [ColumnName "*" Nothing] else parseColumns columnsUnworded)
+      parsedColumns <- (if (checkForAsterix (words columnsUnworded)) then return [ColumnName "*" Nothing] else parseColumns columnsUnworded existingColumns)
       initializer <- checkColumnConditions parsedColumns 
       if length rest == 2
         then
@@ -112,15 +116,19 @@ hasCondition (ColumnName _ condition) = isJust condition
 
 
 
-parseColumns :: String -> Either ErrorMessage [ColumnName]
-parseColumns input = do
+parseColumns :: String -> [ColumnName] -> Either ErrorMessage [ColumnName]
+parseColumns input columns = do
   let colNames = splitColNames input
   colNameStructures <- traverse constructColumnName (map words colNames)
-  return colNameStructures
+  let columnStrings = map (\(ColumnName name _) -> name) colNameStructures
+      hasErrors = any (\s -> not (matchesAnyInList s columns)) columnStrings
+  if hasErrors
+    then Left "Invalid select statement: the provided column names are not part of the given table"
+    else Right colNameStructures
 
 splitColNames :: String -> [String]
 splitColNames input = customSplit ',' input 
-
+ 
 customSplit :: Char -> String -> [String]
 customSplit _ [] = [""]
 customSplit delimiter (x:xs)
@@ -130,10 +138,10 @@ customSplit delimiter (x:xs)
     rest = customSplit delimiter xs
 
 constructColumnName :: [String] -> Either ErrorMessage ColumnName
-constructColumnName [col]
-    | (containsOnlyLettersAndNumbers col) = Right (ColumnName col Nothing)
+constructColumnName [col] 
+    | containsOnlyLettersAndNumbers col = Right (ColumnName col Nothing)
     | otherwise = Left "the column name contains symbols that are not allowed"
-constructColumnName [agg, col]
+constructColumnName [agg, col] 
     | lowerAgg == "min" && containsOnlyLettersAndNumbers col = Right (ColumnName col (Just Min))
     | lowerAgg == "avg" && containsOnlyLettersAndNumbers col = Right (ColumnName col (Just Avg))
     | otherwise = Left "the column name or aggregate function contains symbols that are not allowed"
@@ -200,12 +208,8 @@ findColumnsPosition colName value parsedColumns
 
 
 
--- Executes a parsed statemet. Produces a DataFrame. Uses
--- InMemoryTables.databases a source of data.
--- Right (Select [ColumnName "col1" (Just Min)] "table" [GreaterThan (ColumnName "col1" Nothing) "2"])
--- Right (Select [ColumnName "id" Nothing] "employees" [])
-
 test = Select [ColumnName "id" Nothing] "employees" [GreaterThan (ColumnName "id" Nothing) "1"]
+
 executeStatement :: ParsedStatement -> Either ErrorMessage DataFrame
 executeStatement ShowTables =
   let tableNames = map fst database
@@ -357,49 +361,3 @@ myMapMaybe f (x:xs) =
  case f x of
   Nothing -> rs
   Just r  -> r:rs
-
-
-
--- data ColumnName = ColumnName String (Maybe Condition)
---   deriving (Show, Eq)
--- data Condition
---   = Equals ColumnName String
---   | LessThan ColumnName String
---   | GreaterThan ColumnName String
---   | LessEqualThan ColumnName String
---   | GreaterEqualThan ColumnName String
---   | Min
---   | Avg
---   deriving (Show, Eq)
-
--- data ParsedStatement
---   = ShowTables
---   | ShowTable String
---   | Select [ColumnName] TableName [Condition]
---   deriving (Show, Eq)
-
-
-
-
--- module DataFrame (Column (..), ColumnType (..), Value (..), Row, DataFrame (..)) where
-
--- data ColumnType
---   = IntegerType
---   | StringType
---   | BoolType
---   deriving (Show, Eq)
-
--- data Column = Column String ColumnType
---   deriving (Show, Eq)
-
--- data Value
---   = IntegerValue Integer
---   | StringValue String
---   | BoolValue Bool
---   | NullValue
---   deriving (Show, Eq)
-
--- type Row = [Value]
-
--- data DataFrame = DataFrame [Column] [Row]
---   deriving (Show, Eq)
