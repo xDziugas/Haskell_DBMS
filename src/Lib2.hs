@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use lambda-case" #-}
@@ -19,7 +18,6 @@ import Lib1 (renderDataFrameAsTable)
 import Data.Maybe (isJust)
 
 type ErrorMessage = String
-
 type Database = [(TableName, DataFrame)]
 
 data ColumnName = ColumnName String (Maybe Condition)
@@ -61,10 +59,11 @@ parseShowStatement (secondWord : remaining) = case map toLower secondWord of
     _ -> Left "Invalid show statement: there can only be one table"
   _ -> Left "Invalid show statement: after SHOW keyword no keyword TABLE or TABLES was found"
 
+
 parseSelectStatement :: [String] -> Either ErrorMessage ParsedStatement
 parseSelectStatement input =
   let (columns, rest) = span (not . isFrom) input
-      columnsUnworded = unwords (columns)
+      columnsUnworded = unwords(columns)
       fromKeyword = map toLower (if null rest then "" else rest !! 0)
       whereKeyword = map toLower (rest !! 2)
       conditions = drop 3 rest
@@ -80,29 +79,23 @@ parseSelectStatement input =
           Right (Select parsedColumns tableName [])
       else if whereKeyword == "where" && (length rest) >= 6 
         then do
-          existingColumns <- getAllColumns tableName
-          parsedColumns <- (if (checkForAsterix (words columnsUnworded)) then return [ColumnName "*" Nothing] else parseColumns columnsUnworded)
-          initializer <- checkColumnConditions parsedColumns
-          if length rest == 2
-            then Right (Select parsedColumns tableName [])
-            else
-              if whereKeyword == "where" && (length rest) >= 6
-                then do
-                  parsedConditions <- parseConditions conditions existingColumns
-                  Right (Select parsedColumns tableName parsedConditions)
-                else Left "Invalid select statement: the keyword WHERE is not writen in the appropriate position or the condition in the WHERE clause is not valid"
-        else Left "Invalid select statement: the keyword FROM is not writen in the appropriate position"
+          parsedConditions <- parseConditions conditions existingColumns
+          Right (Select parsedColumns tableName parsedConditions)
+      else
+        Left "Invalid select statement: the keyword WHERE is not writen in the appropriate position or the condition in the WHERE clause is not valid" 
+  else
+    Left "Invalid select statement: the keyword FROM is not writen in the appropriate position"
 
 isFrom :: String -> Bool
 isFrom word = map toLower word == "from"
 
 getAllColumns :: String -> Either ErrorMessage [ColumnName]
 getAllColumns tableName =
-  case lookup tableName database of
+   case lookup tableName database of
     Nothing -> Left "no table found by that name"
-    Just table -> Right $ (\(DataFrame columns _) -> map (\(Column name _) -> ColumnName name Nothing) columns) table
+    Just table ->  Right $ (\(DataFrame columns _) -> map (\(Column name _) -> ColumnName name Nothing) columns) table
 
-checkForAsterix :: [String] -> Bool
+checkForAsterix :: [String] -> Bool 
 checkForAsterix ["*"] = True
 checkForAsterix _ = False
 
@@ -116,6 +109,13 @@ checkColumnConditions colNames =
 hasCondition :: ColumnName -> Bool
 hasCondition (ColumnName _ condition) = isJust condition
 
+
+
+
+
+
+
+
 parseColumns :: String -> [ColumnName] -> Either ErrorMessage [ColumnName]
 parseColumns input columns = do
   let colNames = splitColNames input
@@ -128,12 +128,12 @@ parseColumns input columns = do
 
 splitColNames :: String -> [String]
 splitColNames input = customSplit ',' input 
-
+ 
 customSplit :: Char -> String -> [String]
 customSplit _ [] = [""]
-customSplit delimiter (x : xs)
-  | x == delimiter = "" : rest
-  | otherwise = (x : head rest) : tail rest
+customSplit delimiter (x:xs)
+    | x == delimiter = "" : rest
+    | otherwise = (x : head rest) : tail rest
   where
     rest = customSplit delimiter xs
 
@@ -152,47 +152,50 @@ constructColumnName _ = Left "Invalid column name structure"
 containsOnlyLettersAndNumbers :: String -> Bool
 containsOnlyLettersAndNumbers = all isAlphaNum
 
+
+
+
+
+
+
+
+
 parseConditions :: [String] -> [ColumnName] -> Either ErrorMessage [Condition]
 parseConditions [] columns = Right []
-parseConditions input columns =
-  case break (\x -> (map toLower x) == "and") input of
-    (conditionTokens, andKeyword : rest) -> do
-      condition <- parseToken conditionTokens columns
-      conditions <- parseConditions rest columns
-      return (condition : conditions)
-    _ -> do
-      condition <- parseToken input columns
-      return [condition]
+parseConditions input columns = 
+    case break (\x -> (map toLower x) == "and") input of
+      (conditionTokens, andKeyword : rest) -> do
+        condition <- parseToken conditionTokens columns
+        conditions <- parseConditions rest columns
+        return (condition : conditions)
+      _ -> do
+        condition <- parseToken input columns
+        return [condition]
 
 parseToken :: [String] -> [ColumnName] -> Either ErrorMessage Condition
 parseToken (colName : op : value : []) parsedColumns
-  | not (matchesAnyInList colName parsedColumns) && not (matchesAnyInList value parsedColumns) = Left "Invalid column name inside a condition"
-  | (matchesAnyInList colName parsedColumns) && (matchesAnyInList value parsedColumns) = Left "Cant do operations with two columns"
-  | otherwise =
-      case findColumnsPosition colName value parsedColumns of
-        (ColumnName name _, validVal) ->
-          case op of
-            "=" ->
-              if colName == name
-                then Right (Equals (ColumnName name Nothing) validVal)
-                else Right (Equals (ColumnName name Nothing) validVal)
-            "<" ->
-              if colName == name
-                then Right (LessThan (ColumnName name Nothing) validVal)
-                else Right (GreaterThan (ColumnName name Nothing) validVal)
-            ">" ->
-              if colName == name
-                then Right (GreaterThan (ColumnName name Nothing) validVal)
-                else Right (LessThan (ColumnName name Nothing) validVal)
-            ">=" ->
-              if colName == name
-                then Right (GreaterEqualThan (ColumnName name Nothing) validVal)
-                else Right (LessEqualThan (ColumnName name Nothing) validVal)
-            "<=" ->
-              if colName == name
-                then Right (LessEqualThan (ColumnName name Nothing) validVal)
-                else Right (GreaterEqualThan (ColumnName name Nothing) validVal)
-            _ -> Left "Invalid operator inside a condition"
+    | not (matchesAnyInList colName parsedColumns) && not (matchesAnyInList value parsedColumns) = Left "Invalid column name inside a condition"
+    | (matchesAnyInList colName parsedColumns) && (matchesAnyInList value parsedColumns) = Left "Cant do operations with two columns"
+    | otherwise = 
+        case findColumnsPosition colName value parsedColumns of
+              (ColumnName name _, validVal) ->
+                  case op of
+                      "=" -> if colName == name
+                             then Right (Equals (ColumnName name Nothing) validVal)
+                             else Right (Equals (ColumnName name Nothing) validVal)
+                      "<" -> if colName == name
+                             then Right (LessThan (ColumnName name Nothing) validVal)
+                             else Right (GreaterThan (ColumnName name Nothing) validVal)
+                      ">" -> if colName == name
+                             then Right (GreaterThan (ColumnName name Nothing) validVal)
+                             else Right (LessThan (ColumnName name Nothing) validVal)
+                      ">=" -> if colName == name
+                              then Right (GreaterEqualThan (ColumnName name Nothing) validVal)
+                              else Right (LessEqualThan (ColumnName name Nothing) validVal)
+                      "<=" -> if colName == name
+                              then Right (LessEqualThan (ColumnName name Nothing) validVal)
+                              else Right (GreaterEqualThan (ColumnName name Nothing) validVal)
+                      _ -> Left "Invalid operator inside a condition"
 parseToken _ _ = Left "Invalid condition"
 
 matchesAnyInList :: String -> [ColumnName] -> Bool
@@ -203,6 +206,7 @@ findColumnsPosition colName value parsedColumns
     | matchesAnyInList colName parsedColumns && not (matchesAnyInList value parsedColumns) = (ColumnName colName Nothing, value)
     | not (matchesAnyInList colName parsedColumns) && matchesAnyInList value parsedColumns = (ColumnName value Nothing, colName)
 
+
 ------------------------------------------------------------------
 executeStatement :: ParsedStatement -> Either ErrorMessage DataFrame
 executeStatement ShowTables =
@@ -210,16 +214,20 @@ executeStatement ShowTables =
       columns = [Column "Table Names" StringType]
       rows = map (\name -> [StringValue name]) tableNames
   in Right (DataFrame columns rows)
+
+
 executeStatement (ShowTable tableName) =
   case lookup tableName database of
     Nothing -> Left $ "Table with name " ++ tableName ++ " was not found"
     Just dataFrame -> Right dataFrame
+
+
 executeStatement (Select columnNames tableName conditions) =
   case lookup tableName database of
     Just tableData -> do
-      let withSelectedColumns = selectColumns tableData columnNames
-          withFilteredColumns = filterRows withSelectedColumns conditions
-          withAgregates = handleAggregate withFilteredColumns columnNames
+      let withFilteredColumns = filterRows tableData conditions
+          withSelectedColumns = selectColumns withFilteredColumns columnNames
+          withAgregates = handleAggregate withSelectedColumns columnNames
       return withAgregates
     Nothing -> Left $ "Table with name " ++ tableName ++ " was not found"
 
@@ -247,6 +255,7 @@ filterRows (DataFrame dataColumns dataRows) conditions =
         Just index -> case row !! index of
           StringValue s -> s == value
           IntegerValue i -> i == read value
+          BoolValue b -> map toLower (show b) == map toLower value
           _ -> False
         Nothing -> False
     evaluateCondition row (LessThan (ColumnName colName _) value) =
