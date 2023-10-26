@@ -207,9 +207,7 @@ findColumnsPosition colName value parsedColumns
     | not (matchesAnyInList colName parsedColumns) && matchesAnyInList value parsedColumns = (ColumnName value Nothing, colName)
 
 
-
-test = Select [ColumnName "id" Nothing] "employees" [GreaterThan (ColumnName "id" Nothing) "1"]
-
+------------------------------------------------------------------
 executeStatement :: ParsedStatement -> Either ErrorMessage DataFrame
 executeStatement ShowTables =
   let tableNames = map fst database
@@ -322,11 +320,10 @@ handleAggregate (DataFrame dataColumns dataRows) parsedColumns =
             then IntegerValue (sumValue `div` count)
             else NullValue
 
-        -- Helper function to determine the value type of a Value
         getValueType (IntegerValue _) = IntegerType
         getValueType (StringValue _) = StringType
         getValueType (BoolValue _) = BoolType
-        getValueType NullValue = StringType -- Default to StringType for Null
+        getValueType NullValue = StringType
 
 
       in case head parsedColumns of
