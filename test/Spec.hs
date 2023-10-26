@@ -40,12 +40,30 @@ main = hspec $ do
       Lib2.parseStatement "SELECT AVG id FROM employees" `shouldBe` Right (Select [ColumnName "id" (Just Avg)] "employees" [])
   describe "Lib2.execute" $ do
     it "handles correct show table input" $ do
-      Lib2.executeStatement (ShowTable "flags") `shouldBe` Right (DataFrame [Column "flag" StringType, Column "value" BoolType] [[StringValue "a", BoolValue True], [StringValue "b", BoolValue True], [StringValue "b", NullValue], [StringValue "b", BoolValue False]])
+      Lib2.executeStatement (ShowTable "flags") 
+      `shouldBe` Right (DataFrame [Column "flag" StringType, Column "value" BoolType] [[StringValue "a", BoolValue True], [StringValue "b", BoolValue True], [StringValue "b", NullValue], [StringValue "b", BoolValue False]])
     it "handles correct show tables input" $ do
-      Lib2.executeStatement ShowTables `shouldBe` Right (DataFrame [Column "Table Names" StringType] [[StringValue "employees"], [StringValue "invalid1"], [StringValue "invalid2"], [StringValue "long_strings"], [StringValue "flags"]])
+      Lib2.executeStatement ShowTables 
+      `shouldBe` Right (DataFrame [Column "Table Names" StringType] [[StringValue "employees"], [StringValue "invalid1"], [StringValue "invalid2"], [StringValue "long_strings"], [StringValue "flags"]])
     it "handles correct SELECT statement without where" $ do
-      Lib2.executeStatement (Select [ColumnName "flag" Nothing] "flags" []) `shouldBe` Right (DataFrame [Column "flag" StringType] [[StringValue "a"], [StringValue "b"], [StringValue "b"], [StringValue "b"]])
+      Lib2.executeStatement (Select [ColumnName "flag" Nothing] "flags" []) 
+      `shouldBe` Right (DataFrame [Column "flag" StringType] [[StringValue "a"], [StringValue "b"], [StringValue "b"], [StringValue "b"]])
     it "handles correct SELECT statement with where" $ do
-      Lib2.executeStatement (Select [ColumnName "flag" Nothing] "flags" [Equals (ColumnName "flag" Nothing) "b"]) `shouldBe` Right (DataFrame [Column "flag" StringType] [[StringValue "b"], [StringValue "b"], [StringValue "b"]])
+      Lib2.executeStatement (Select [ColumnName "flag" Nothing] "flags" [Equals (ColumnName "flag" Nothing) "b"]) 
+      `shouldBe` Right (DataFrame [Column "flag" StringType] [[StringValue "b"], [StringValue "b"], [StringValue "b"]])
     it "handles correct SELECT statement with multiple conditions" $ do
-      Lib2.executeStatement (Select [ColumnName "flag" Nothing, ColumnName "value" Nothing] "flags" [Equals (ColumnName "flag" Nothing) "b", Equals (ColumnName "value" Nothing) "true"]) `shouldBe` Right (DataFrame [Column "flag" StringType, Column "value" BoolType] [[StringValue "b", BoolValue True]])
+      Lib2.executeStatement (Select [ColumnName "flag" Nothing, ColumnName "value" Nothing] "flags" [Equals (ColumnName "flag" Nothing) "b", Equals (ColumnName "value" Nothing) "true"]) 
+      `shouldBe` Right (DataFrame [Column "flag" StringType, Column "value" BoolType] [[StringValue "b", BoolValue True]])
+    it "understands * expression" $ do
+      Lib2.executeStatement (Select [ColumnName "*" Nothing] "flags" []) 
+      `shouldBe` 
+      Right (DataFrame [Column "flag" StringType,Column "value" BoolType] [[StringValue "a",BoolValue True],[StringValue "b",BoolValue True],[StringValue "b",NullValue],[StringValue "b",BoolValue False]])
+    it "executes agregate" $ do
+      Lib2.executeStatement (Select [ColumnName "id" (Just Min)] "employees" []) 
+      `shouldBe` Right (DataFrame [Column "minimum" IntegerType] [[IntegerValue 1]])
+    it "handles boolean conditions" $ do
+      Lib2.executeStatement (Select [ColumnName "flag" Nothing] "flags" [Equals (ColumnName "value" Nothing) "True"]) 
+      `shouldBe` Right (DataFrame [Column "flag" StringType] [[StringValue "a"],[StringValue "b"]]) 
+    it "executes complex clause" $ do
+      Lib2.executeStatement (Select [ColumnName "id" (Just Avg)] "employees" [GreaterEqualThan (ColumnName "id" Nothing) "2"]) 
+      `shouldBe` Right (DataFrame [Column "average" IntegerType] [[IntegerValue 2]])
