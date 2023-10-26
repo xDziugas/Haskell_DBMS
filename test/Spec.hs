@@ -27,6 +27,8 @@ main = hspec $ do
       Lib2.parseStatement "show tables asdf" `shouldBe` Left "Invalid show statement"
     it "handles case-insensitive keywords" $ do
       Lib2.parseStatement "shOW tAblEs" `shouldBe` Right ShowTables
+    it "handles extra whitespace" $ do
+      Lib2.parseStatement "  show tables  " `shouldBe` Right ShowTables
   describe "Lib2.Select" $ do
     it "handles correct input" $ do
       Lib2.parseStatement "SELECT flag FROM flags" `shouldBe` Right (Select [ColumnName "flag" Nothing] "flags" [])
