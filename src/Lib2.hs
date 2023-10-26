@@ -225,9 +225,9 @@ executeStatement (ShowTable tableName) =
 executeStatement (Select columnNames tableName conditions) =
   case lookup tableName database of
     Just tableData -> do
-      let withSelectedColumns = selectColumns tableData columnNames
-          withFilteredColumns = filterRows withSelectedColumns conditions
-          withAgregates = handleAggregate withFilteredColumns columnNames
+      let withFilteredColumns = filterRows tableData conditions
+          withSelectedColumns = selectColumns withFilteredColumns columnNames
+          withAgregates = handleAggregate withSelectedColumns columnNames
       return withAgregates
     Nothing -> Left $ "Table with name " ++ tableName ++ " was not found"
 
@@ -255,6 +255,7 @@ filterRows (DataFrame dataColumns dataRows) conditions =
         Just index -> case row !! index of
           StringValue s -> s == value
           IntegerValue i -> i == read value
+          BoolValue b -> map toLower (show b) == map toLower value
           _ -> False
         Nothing -> False
     evaluateCondition row (LessThan (ColumnName colName _) value) =
