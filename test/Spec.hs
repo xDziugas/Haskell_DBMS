@@ -13,18 +13,18 @@ main = hspec $ do
     it "handles correct input" $ do
       Lib2.parseStatement "show table flags" `shouldBe` Right (ShowTable "flags")
     it "handles incorrect names" $ do
-      Lib2.parseStatement "show table asdf" `shouldBe` Left "Invalid show statement: after SHOW keyword no keyword TABLE or TABLES was found"
+      Lib2.parseStatement "show table asdf" `shouldBe` Left "Invalid show statement: no table name like that exists"
     it "handles incorrect number of names" $ do
       Lib2.parseStatement "show table flags asdf" `shouldBe` Left "Invalid show statement: there can only be one table"
     it "handles case-insensitive keywords" $ do
       Lib2.parseStatement "sHoW TaBlE flags" `shouldBe` Right (ShowTable "flags")
     it "handles case-sensitive names" $ do
-      Lib2.parseStatement "sHoW TaBlE flAgS" `shouldBe` Left "Invalid show statement: no column found with that name"
+      Lib2.parseStatement "sHoW TaBlE flAgS" `shouldBe` Left "Invalid show statement: no table name like that exists"
   describe "Lib2.showtables" $ do
     it "handles correct input" $ do
       Lib2.parseStatement "show tables" `shouldBe` Right ShowTables
     it "handles incorrect input" $ do
-      Lib2.parseStatement "show tables asdf" `shouldBe` Left ""
+      Lib2.parseStatement "show tables asdf" `shouldBe` Left "Invalid show statement"
     it "handles case-insensitive keywords" $ do
       Lib2.parseStatement "shOW tAblEs" `shouldBe` Right ShowTables
   describe "Lib2.Select" $ do
