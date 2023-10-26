@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use lambda-case" #-}
 
 module Lib2
   ( parseStatement,
@@ -9,12 +11,11 @@ module Lib2
   )
 where
 
-import DataFrame (Column (..), DataFrame(..))
+import DataFrame (Column (..), ColumnType (..), Value (..), DataFrame (..), Row(..))
 import InMemoryTables (TableName, database)
 import Data.Char (toLower, isAlphaNum)
-import Lib1 (findTableByName)
+import Lib1 (renderDataFrameAsTable)
 import Data.Maybe (isJust)
-
 
 type ErrorMessage = String
 type Database = [(TableName, DataFrame)]
@@ -206,10 +207,154 @@ findColumnsPosition colName value parsedColumns
     | not (matchesAnyInList colName parsedColumns) && matchesAnyInList value parsedColumns = (ColumnName value Nothing, colName)
 
 
-
-
-
--- Executes a parsed statemet. Produces a DataFrame. Uses
--- InMemoryTables.databases a source of data.
+------------------------------------------------------------------
 executeStatement :: ParsedStatement -> Either ErrorMessage DataFrame
-executeStatement _ = Left "Not implemented: executeStatement"
+executeStatement ShowTables =
+  let tableNames = map fst database
+      columns = [Column "Table Names" StringType]
+      rows = map (\name -> [StringValue name]) tableNames
+  in Right (DataFrame columns rows)
+
+
+executeStatement (ShowTable tableName) =
+  case lookup tableName database of
+    Nothing -> Left $ "Table with name " ++ tableName ++ " was not found"
+    Just dataFrame -> Right dataFrame
+
+
+executeStatement (Select columnNames tableName conditions) =
+  case lookup tableName database of
+    Just tableData -> do
+      let withSelectedColumns = selectColumns tableData columnNames
+          withFilteredColumns = filterRows withSelectedColumns conditions
+          withAgregates = handleAggregate withFilteredColumns columnNames
+      return withAgregates
+    Nothing -> Left $ "Table with name " ++ tableName ++ " was not found"
+
+checkForStar :: [ColumnName] -> [Column] -> [ColumnName]
+checkForStar columnNames columns = 
+  case (\(ColumnName name _) -> name) $ head columnNames of
+    "*" -> map (\(Column name _) -> ColumnName name Nothing) columns
+    _ -> columnNames
+
+selectColumns :: DataFrame -> [ColumnName] -> DataFrame
+selectColumns (DataFrame dataColumns dataRows) parsedColumns =
+  let checkedColumns = checkForStar parsedColumns dataColumns
+      selectedColumnIndexes = myMapMaybe (\(ColumnName colName _) -> getColumnIndex colName dataColumns) checkedColumns
+      selectedColumns = [dataColumns !! idx | idx <- selectedColumnIndexes]
+      selectedRows = map (\row -> [row !! idx | idx <- selectedColumnIndexes]) dataRows
+  in  DataFrame selectedColumns selectedRows
+
+
+filterRows :: DataFrame -> [Condition] -> DataFrame
+filterRows (DataFrame dataColumns dataRows) conditions =
+  let
+    evaluateCondition :: Row -> Condition -> Bool
+    evaluateCondition row (Equals (ColumnName colName _) value) =
+      case getColumnIndex colName dataColumns of
+        Just index -> case row !! index of
+          StringValue s -> s == value
+          IntegerValue i -> i == read value
+          _ -> False
+        Nothing -> False
+    evaluateCondition row (LessThan (ColumnName colName _) value) =
+      case getColumnIndex colName dataColumns of
+        Just index -> case row !! index of
+          IntegerValue i -> i < read value
+          _ -> False
+        Nothing -> False
+    evaluateCondition row (GreaterThan (ColumnName colName _) value) =
+      case getColumnIndex colName dataColumns of
+        Just index -> case row !! index of
+          IntegerValue i -> i > read value
+          _ -> False
+        Nothing -> False
+    evaluateCondition row (LessEqualThan (ColumnName colName _) value) =
+      case getColumnIndex colName dataColumns of
+        Just index -> case row !! index of
+          IntegerValue i -> i <= read value
+          _ -> False
+        Nothing -> False
+    evaluateCondition row (GreaterEqualThan (ColumnName colName _) value) =
+      case getColumnIndex colName dataColumns of
+        Just index -> case row !! index of
+          IntegerValue i -> i >= read value
+          _ -> False
+        Nothing -> False
+
+    filteredRows = filter (\row -> all (evaluateCondition row) conditions) dataRows
+
+  in DataFrame dataColumns filteredRows
+
+handleAggregate :: DataFrame -> [ColumnName] -> DataFrame
+handleAggregate (DataFrame dataColumns dataRows) parsedColumns =
+  let containsAggregate = any isAggregate parsedColumns
+
+      isAggregate (ColumnName _ (Just Min)) = True
+      isAggregate (ColumnName _ (Just Avg)) = True
+      isAggregate _ = False
+
+  in if not containsAggregate
+    then DataFrame dataColumns dataRows
+    else
+      let
+        applyMin :: [Value] -> Value
+        applyMin [] = NullValue
+        applyMin (x:xs) = myMin x xs
+
+        myMin :: Value -> [Value] -> Value
+        myMin currentMin [] = currentMin
+        myMin (IntegerValue a) (IntegerValue b : rest) = myMin (IntegerValue (min a b)) rest
+        myMin currentMin (_ : rest) = myMin currentMin rest
+
+        applyAvg :: [Value] -> Value
+        applyAvg [] = NullValue
+        applyAvg values =
+          let (sumValue, count) =
+                foldl (\(sm, cnt) value ->
+                  case value of
+                    IntegerValue i -> (sm + i, cnt + 1)
+                    _ -> (sm, cnt)
+                ) (0, 0) values
+          in if count > 0
+            then IntegerValue (sumValue `div` count)
+            else NullValue
+
+        getValueType (IntegerValue _) = IntegerType
+        getValueType (StringValue _) = StringType
+        getValueType (BoolValue _) = BoolType
+        getValueType NullValue = StringType
+
+
+      in case head parsedColumns of
+            ColumnName name (Just Min) ->
+              let
+                columnIndex = (\(Just index) -> index) $ getColumnIndex name dataColumns
+                values = map (!! columnIndex) dataRows
+                aggregateValue = applyMin values
+              in
+                DataFrame [Column "minimum" (getValueType aggregateValue)] [[aggregateValue]]
+            ColumnName name (Just Avg) ->
+              let
+                columnIndex = (\(Just index) -> index) $ getColumnIndex name dataColumns
+                values = map (!! columnIndex) dataRows
+                aggregateValue = applyAvg values
+              in
+                DataFrame [Column "average" (getValueType aggregateValue)] [[aggregateValue]]
+
+
+
+getColumnIndex :: String -> [Column] -> Maybe Int
+getColumnIndex targetName columns =
+  let
+    indexedColumns = zip (map (\(Column name _) -> name) columns) [0..]
+  in
+    lookup targetName indexedColumns
+
+myMapMaybe :: (a -> Maybe b) -> [a] -> [b]
+myMapMaybe _ []     = []
+myMapMaybe f (x:xs) =
+ let rs = myMapMaybe f xs in
+ case f x of
+  Nothing -> rs
+  Just r  -> r:rs
