@@ -40,21 +40,18 @@ library:
   source-dirs: src
 
 executables:
- # fp2023-select-all:
+  #fp2023-select-all:
   #  main:                Main.hs
   #  source-dirs:         app1
-  # fp2023-select-all:
-  #   main:                Main.hs
-  #   source-dirs:         app1
-  #   ghc-options:
-  #   - -threaded
-  #   - -rtsopts
-  #   - -with-rtsopts=-N
-  #   dependencies:
-  #   - fp2023
-  #   - extra
-  #   - repline
-  #   - terminal-size
+  #  ghc-options:
+  #  - -threaded
+  #  - -rtsopts
+  #  - -with-rtsopts=-N
+  #  dependencies:
+  #  - fp2023
+  #  - extra
+  #  - repline
+  #  - terminal-size
   fp2023-select-more:
     main:                Main.hs
     source-dirs:         app2
