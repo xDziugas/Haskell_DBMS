@@ -1,7 +1,11 @@
 # fp-2023
 
 ## Setup
+<<<<<<< HEAD
 1. Fork this repository, checkout the fork. This project uses GitHub Actions haskell workflow,
+=======
+1. Checkout the repository. This project uses GitHub Actions haskell workflow,
+>>>>>>> 2ndTask
 please preserve its configuration.
 2. Now you have two options
   - Use GitHub Codespaces (Code -> Codespaces) to develop directly in browser. This is paid
@@ -39,3 +43,10 @@ Run tests: `stack test`
 #test for the merge
 
 #another one
+# Task 2
+
+Please edit [Lib2](src/Lib2.hs) module (only!).
+
+Run your application: `stack run fp2023-select-more`
+
+Add more and run tests: `stack test`
