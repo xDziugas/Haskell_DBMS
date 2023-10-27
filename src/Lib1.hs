@@ -55,9 +55,9 @@ validateDataFrame :: DataFrame -> Either ErrorMessage ()
 validateDataFrame (DataFrame columns rows) =
   if all (\row -> length row == length columns) rows
     then
-        if all (\(columnIndex,col) -> all (\row -> checkColumnType col (row !! columnIndex)) rows) (zip [0..] columns)
-          then Right ()
-          else Left "Data types are incorrect"
+      if all (\(columnIndex, col) -> all (\row -> checkColumnType col (row !! columnIndex)) rows) (zip [0 ..] columns)
+        then Right ()
+        else Left "Data types are incorrect"
     else Left "Row lengths do not match the number of columns"
 
 checkColumnType :: Column -> Value -> Bool
@@ -68,7 +68,6 @@ checkColumnType (Column _ columnType) value =
     (BoolType, BoolValue _) -> True
     (_, NullValue) -> True
     _ -> False
-
 
 -- 4) implement the function which renders a given data frame
 -- as ascii-art table (use your imagination, there is no "correct"
