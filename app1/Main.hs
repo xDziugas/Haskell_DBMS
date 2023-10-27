@@ -1,10 +1,10 @@
 module Main (main) where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
+import Data.Either.Extra (maybeToEither)
 import Data.List qualified as L
 import InMemoryTables (database)
 import Lib1 qualified
-import Lib2 qualified
 import System.Console.Repline
   ( CompleterStyle (Word),
     ExitDecision (Exit),
@@ -22,11 +22,12 @@ final = do
   return Exit
 
 ini :: Repl ()
-ini = liftIO $ putStrLn "Welcome to select-more database! Press [TAB] for auto completion."
+ini = do
+  liftIO $ putStrLn "Welcome to select-all-from database! Press [TAB] for auto completion."
 
 completer :: (Monad m) => WordCompleter m
 completer n = do
-  let names = ["select", "*", "from", "show", "table", "tables"] ++ map fst database
+  let names = ["select", "*", "from"]
   return $ Prelude.filter (L.isPrefixOf n) names
 
 -- Evaluation : handle each line user inputs
@@ -41,8 +42,8 @@ cmd c = do
     terminalWidth = maybe 80 width
     cmd' :: Integer -> Either String String
     cmd' s = do
-      stmt <- Lib2.parseStatement c
-      df <- Lib2.executeStatement stmt
+      table <- Lib1.parseSelectAllStatement c
+      df <- maybeToEither ("Table not found: " ++ table) (Lib1.findTableByName database table)
       _ <- Lib1.validateDataFrame df
       return $ Lib1.renderDataFrameAsTable s df
 
