@@ -38,20 +38,24 @@ ghc-options:
 
 library:
   source-dirs: src
+  dependencies:
+  - free
+  - time
+  - transformers
 
 executables:
-  #fp2023-select-all:
-  #  main:                Main.hs
-  #  source-dirs:         app1
-  #  ghc-options:
-  #  - -threaded
-  #  - -rtsopts
-  #  - -with-rtsopts=-N
-  #  dependencies:
-  #  - fp2023
-  #  - extra
-  #  - repline
-  #  - terminal-size
+  fp2023-select-all:
+    main:                Main.hs
+    source-dirs:         app1
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - fp2023
+    - extra
+    - repline
+    - terminal-size
   fp2023-select-more:
     main:                Main.hs
     source-dirs:         app2
@@ -64,6 +68,20 @@ executables:
     - extra
     - repline
     - terminal-size
+  fp2023-manipulate:
+    main:                Main.hs
+    source-dirs:         app3
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - fp2023
+    - extra
+    - repline
+    - terminal-size
+    - free
+    - time
 
 tests:
   fp2023-test:
