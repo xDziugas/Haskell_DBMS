@@ -4,7 +4,7 @@ employeesOfShop:
     - name: String
     - department: String
   rows:
-    - [101, "Alice", "HR"]
-    - [102, "Bob", "IT"]
-    - [103, "Carol", "Marketing"]
-    - [104, "David", "Finance"]
+    - [101, Alice, HR]
+    - [102, Bob, IT]
+    - [103, Carol, Marketing]
+    - [104, David, Finance]

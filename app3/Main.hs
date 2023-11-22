@@ -72,6 +72,7 @@ runExecuteIO (Free step) = do
           return (next fileContent)
 
 
+--Dont understand in which directory we are in when executing the program
 getPath :: String -> String
-getPath tableName = "../db/" ++ tableName ++ ".yaml"
+getPath tableName = "db/" ++ tableName ++ ".yaml"
 

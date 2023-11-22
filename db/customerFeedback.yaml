@@ -5,8 +5,8 @@ customerFeedback:
     - rating: Int
     - comment: String
   rows:
-    - [701, 401, 5, "Excellent service"]
-    - [702, 403, null, "Good, but room for improvement"]
+    - [701, 401, 5, Excellent service]
+    - [702, 403, null, Good, but room for improvement]
     - [703, 404, 4, null]
     - [704, 402, null, null]
-    - [705, 405, 3, "Average experience"]
+    - [705, 405, 3, Average experience]
