@@ -66,3 +66,12 @@ runExecuteIO (Free step) = do
         -- probably you will want to extend the interpreter
         runStep :: Lib3.ExecutionAlgebra a -> IO a
         runStep (Lib3.GetTime next) = getCurrentTime >>= return . next
+        runStep (Lib3.LoadFile tableName next) = do
+          let relativePath = getPath tableName
+          fileContent <- readFile relativePath
+          return (next fileContent)
+
+
+getPath :: String -> String
+getPath tableName = "../db/" ++ tableName ++ ".yaml"
+

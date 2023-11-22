@@ -38,10 +38,12 @@ library
       ImportQualifiedPost
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , base >=4.7 && <5
     , free
     , time
     , transformers
+    , yaml
   default-language: Haskell2010
 
 executable fp2023-manipulate
@@ -54,13 +56,15 @@ executable fp2023-manipulate
       ImportQualifiedPost
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , base >=4.7 && <5
     , extra
     , fp2023
     , free
     , repline
     , terminal-size
     , time
+    , yaml
   default-language: Haskell2010
 
 executable fp2023-select-all
@@ -73,11 +77,14 @@ executable fp2023-select-all
       ImportQualifiedPost
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , base >=4.7 && <5
     , extra
     , fp2023
+    , free
     , repline
     , terminal-size
+    , yaml
   default-language: Haskell2010
 
 executable fp2023-select-more
@@ -90,11 +97,14 @@ executable fp2023-select-more
       ImportQualifiedPost
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , base >=4.7 && <5
     , extra
     , fp2023
+    , free
     , repline
     , terminal-size
+    , yaml
   default-language: Haskell2010
 
 test-suite fp2023-test
@@ -108,7 +118,10 @@ test-suite fp2023-test
       ImportQualifiedPost
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , base >=4.7 && <5
     , fp2023
+    , free
     , hspec
+    , yaml
   default-language: Haskell2010

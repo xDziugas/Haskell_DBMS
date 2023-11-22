@@ -1,0 +1,10 @@
+products:
+  columns:
+    - product_id: Int
+    - name: String
+    - price: Int
+  rows:
+    - [201, "Laptop", 1200]
+    - [202, "Smartphone", 800]
+    - [203, "Tablet", 600]
+    - [204, "Monitor", 300]
