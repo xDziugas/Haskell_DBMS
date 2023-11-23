@@ -23,6 +23,16 @@ tableEmployees =
       ]
   )
 
+tableEmployees2 :: (TableName, DataFrame)
+tableEmployees2 =
+  ( "employees2",
+    DataFrame
+      [Column "idd" IntegerType, Column "namee" StringType, Column "surnamee" StringType]
+      [ [IntegerValue 1, StringValue "Jo", StringValue "Ja"],
+        [IntegerValue 2, StringValue "Ka", StringValue "Ma"]
+      ]
+  )
+
 tableInvalid1 :: (TableName, DataFrame)
 tableInvalid1 =
   ( "invalid1",
@@ -80,4 +90,4 @@ tableWithNulls =
   )
 
 database :: [(TableName, DataFrame)]
-database = [tableEmployees, tableInvalid1, tableInvalid2, tableLongStrings, tableWithNulls]
+database = [tableEmployees, tableEmployees2, tableInvalid1, tableInvalid2, tableLongStrings, tableWithNulls]

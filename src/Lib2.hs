@@ -10,8 +10,11 @@
 {-# HLINT ignore "Use lambda-case" #-}
 
 module Lib2
-  ( parseStatement,
-    ParsedStatement,
+  ( 
+    parseStatement,
+    ParsedStatement(..), ValueExpr(..), Condition(..),
+    ValueExpr,
+    Condition,
   )
 where
 
