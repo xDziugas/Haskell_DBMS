@@ -22,7 +22,7 @@ import Data.Aeson.Key (fromString)
 import qualified Data.ByteString.Char8 as BS
 import Data.List (intercalate)
 import Data.Char (toLower)
-import InMemoryTables (database)
+import Lib2 (parseStatement, ParsedStatement(..), Condition(..), ValueExpr(..))
 
 
 instance FromJSON Table where
@@ -57,10 +57,7 @@ instance FromJSON YamlValue where
   parseJSON Y.Null = pure YamlNull
   parseJSON _ = fail "Invalid value"
 
-import Lib2 (parseStatement, ParsedStatement(..), Condition(..), ValueExpr(..))
-import InMemoryTables qualified
-import Data.Char (toLower)
-import Data.List (findIndices, findIndex)
+
 
 
 type TableName = String
@@ -76,16 +73,12 @@ data ExecutionAlgebra next
   | ParseStringOfFile FileContent ((Either ErrorMessage DataFrame) -> next)
   | SerializeDataFrameToYAML TableName DataFrame (DataFrame -> next)
   | CheckDataFrame DataFrame ((Either ErrorMessage DataFrame) -> next)
-  -- feel free to add more constructors heref
   | ExecuteSelect [DataFrame] ParsedStatement (Either ErrorMessage DataFrame -> next)
   | ExecuteInsert DataFrame ParsedStatement (Either ErrorMessage DataFrame -> next)
   | ExecuteUpdate DataFrame ParsedStatement (Either ErrorMessage DataFrame -> next)
   | ExecuteDelete DataFrame ParsedStatement (Either ErrorMessage DataFrame -> next)
   deriving Functor
 
-
-parseContent :: FileContent -> Execution (Either ErrorMessage DataFrame)
-parseContent fileContent = liftF $ ParseStringOfFile fileContent id
 
 loadFile :: TableName -> Execution FileContent
 loadFile name = liftF $ LoadFile name id
@@ -116,7 +109,7 @@ executeUpdate df stmt = liftF $ ExecuteUpdate df stmt id
 executeDelete :: DataFrame -> ParsedStatement -> Execution (Either ErrorMessage DataFrame)
 executeDelete df stmt = liftF $ ExecuteDelete df stmt id
 
--- Main function to construct SQL command execution steps
+-- Constructs table loading steps
 loadAndParseMultipleTables :: [TableName] -> Execution (Either ErrorMessage [DataFrame])
 loadAndParseMultipleTables tables = chain tables []
   where
@@ -129,18 +122,41 @@ loadAndParseMultipleTables tables = chain tables []
                       Left errMsg -> return $ Left errMsg
 
 
-executeSql :: String -> Execution (Either ErrorMessage DataFrame)
-executeSql tableName = do
-  fileContent <- loadFile tableName
-  eitherDataFrame <- parseContent fileContent
-  case eitherDataFrame of
-    Left errMsg -> return (Left errMsg)
-    Right df -> checkDataFrame df
+executeSql sql = case parseStatement sql of
+    Right stmt@(Select{qeFrom = tables}) -> 
+        loadAndParseMultipleTables tables >>= \eitherDfs ->
+        case eitherDfs of
+            Right dfs -> executeSelect dfs stmt
+            Left errMsg -> return $ Left errMsg
+
+    Right stmt@(Insert tableName _ _) ->
+        loadFile tableName >>= \fileContent -> 
+        parseFileContent fileContent >>= \eitherDf ->
+        case eitherDf of
+            Right df -> executeInsert df stmt
+            Left errMsg -> return $ Left errMsg
+
+    Right stmt@(Update tableName _ _) ->
+        loadFile tableName >>= \fileContent -> 
+        parseFileContent fileContent >>= \eitherDf ->
+        case eitherDf of
+            Right df -> executeUpdate df stmt
+            Left errMsg -> return $ Left errMsg
+
+    Right stmt@(Delete tableName _) ->
+        loadFile tableName >>= \fileContent -> 
+        parseFileContent fileContent >>= \eitherDf ->
+        case eitherDf of
+            Right df -> executeDelete df stmt
+            Left errMsg -> return $ Left errMsg
+
+    Left errorMsg -> return $ Left errorMsg
+
     
 
 
 
-
+-------------------------parseContent--------------------------
 
 parseContentToDataFrame :: FileContent -> Either ErrorMessage DataFrame
 parseContentToDataFrame fileContent = 
@@ -215,33 +231,4 @@ serializeValue NullValue        = "null"
 
 getPath :: String -> String
 getPath tableName = "db/" ++ tableName ++ ".yaml"
-executeSql sql = case parseStatement sql of
-    Right stmt@(Select{qeFrom = tables}) -> 
-        loadAndParseMultipleTables tables >>= \eitherDfs ->
-        case eitherDfs of
-            Right dfs -> executeSelect dfs stmt
-            Left errMsg -> return $ Left errMsg
-
-    Right stmt@(Insert tableName _ _) ->
-        loadFile tableName >>= \fileContent -> 
-        parseFileContent fileContent >>= \eitherDf ->
-        case eitherDf of
-            Right df -> executeInsert df stmt
-            Left errMsg -> return $ Left errMsg
-
-    Right stmt@(Update tableName _ _) ->
-        loadFile tableName >>= \fileContent -> 
-        parseFileContent fileContent >>= \eitherDf ->
-        case eitherDf of
-            Right df -> executeUpdate df stmt
-            Left errMsg -> return $ Left errMsg
-
-    Right stmt@(Delete tableName _) ->
-        loadFile tableName >>= \fileContent -> 
-        parseFileContent fileContent >>= \eitherDf ->
-        case eitherDf of
-            Right df -> executeDelete df stmt
-            Left errMsg -> return $ Left errMsg
-
-    Left errorMsg -> return $ Left errorMsg
 
