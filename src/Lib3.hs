@@ -4,8 +4,9 @@ module Lib3
   ( executeSql,
     Execution,
     ExecutionAlgebra(..),
-    checkForParsing,
-    getPath
+    parseContentToDataFrame,
+    getPath,
+    writeDataFrameToYAML
   )
 where
 
@@ -18,6 +19,10 @@ import qualified Data.Yaml as Y
 import Data.Text (pack, unpack) 
 import Data.Aeson.Key (fromString)
 import qualified Data.ByteString.Char8 as BS
+import Data.List (intercalate)
+import Data.Char (toLower)
+import InMemoryTables (database)
+
 
 instance FromJSON Table where
   parseJSON = withObject "Table" $ \v ->
@@ -37,7 +42,7 @@ data ColumnDef = ColumnDef
 
 data Table = Table
   { columns     :: [ColumnDef]
-  , rows        :: [[YamlValue]]  -- Changed from [[Int]]
+  , rows        :: [[YamlValue]]
   } deriving (Show, Eq)
 
 data YamlValue = YamlInt Integer | YamlString String | YamlBool Bool | YamlNull
@@ -45,7 +50,7 @@ data YamlValue = YamlInt Integer | YamlString String | YamlBool Bool | YamlNull
 
 
 instance FromJSON YamlValue where
-  parseJSON (Y.Number n) = pure $ YamlInt (round n)  -- Assuming all numbers are integers
+  parseJSON (Y.Number n) = pure $ YamlInt (round n)
   parseJSON (Y.String s) = pure $ YamlString (unpack s)
   parseJSON (Y.Bool b) = pure $ YamlBool b
   parseJSON Y.Null = pure YamlNull
@@ -63,6 +68,8 @@ data ExecutionAlgebra next
   = LoadFile TableName (FileContent -> next)  
   | GetTime (UTCTime -> next)
   | ParseStringOfFile FileContent ((Either ErrorMessage DataFrame) -> next)
+  | SerializeDataFrameToYAML TableName DataFrame (DataFrame -> next)
+  | CheckDataFrame DataFrame ((Either ErrorMessage DataFrame) -> next)
   -- feel free to add more constructors heref
   deriving Functor
 
@@ -76,18 +83,27 @@ loadFile name = liftF $ LoadFile name id
 getTime :: Execution UTCTime
 getTime = liftF $ GetTime id
 
+serializeDataFrameToYAML :: TableName -> DataFrame -> Execution DataFrame
+serializeDataFrameToYAML tableName df = liftF $ SerializeDataFrameToYAML tableName df id
+
+checkDataFrame :: DataFrame -> Execution (Either ErrorMessage DataFrame)
+checkDataFrame df = liftF $ CheckDataFrame df id
+
 executeSql :: String -> Execution (Either ErrorMessage DataFrame)
-executeSql sql = do
-  fileContent <- loadFile sql
-  parseContent fileContent
+executeSql tableName = do
+  fileContent <- loadFile tableName
+  eitherDataFrame <- parseContent fileContent
+  case eitherDataFrame of
+    Left errMsg -> return (Left errMsg)
+    Right df -> checkDataFrame df
     
 
 
-getPath :: String -> String
-getPath tableName = "db/" ++ tableName ++ ".yaml"
 
-checkForParsing :: FileContent -> Either ErrorMessage DataFrame
-checkForParsing fileContent = 
+
+
+parseContentToDataFrame :: FileContent -> Either ErrorMessage DataFrame
+parseContentToDataFrame fileContent = 
   case parseYAMLToTable fileContent of
     Nothing -> Left "Parsing failed"
     Just table -> Right $ tableToDataFrame table
@@ -115,3 +131,47 @@ parseRow columnDefs yamlValues = zipWith parseValue columnDefs yamlValues
     parseValue (ColumnDef _ "Bool") (YamlBool b) = BoolValue b
     parseValue _ YamlNull = NullValue
     parseValue _ _ = error "Type mismatch"
+
+
+
+
+
+
+
+writeDataFrameToYAML :: String -> DataFrame -> IO DataFrame
+writeDataFrameToYAML fileName df = do
+  let yamlContent = serializeDataFrame df
+  writeFile ("db/" ++ fileName ++ ".yaml") yamlContent
+  return df
+
+
+serializeDataFrame :: DataFrame -> String
+serializeDataFrame (DataFrame columns rows) = 
+  "columns:\n" ++ unlines (map serializeColumn columns) ++ 
+  "rows:\n" ++ unlines (map serializeRow rows)
+
+serializeColumn :: Column -> String
+serializeColumn (Column name dataType) = 
+  "- name: " ++ name ++ "\n  dataType: " ++ dataTypeToString dataType
+
+dataTypeToString :: ColumnType -> String
+dataTypeToString IntegerType = "Int"
+dataTypeToString StringType  = "String"
+dataTypeToString BoolType    = "Bool"
+
+serializeRow :: Row -> String
+serializeRow row = 
+  "- [" ++ intercalate ", " (map serializeValue row) ++ "]"
+
+serializeValue :: Value -> String
+serializeValue (IntegerValue i) = show i
+serializeValue (StringValue s)  = s 
+serializeValue (BoolValue b)    = map toLower $ show b 
+serializeValue NullValue        = "null"
+
+
+
+
+
+getPath :: String -> String
+getPath tableName = "db/" ++ tableName ++ ".yaml"

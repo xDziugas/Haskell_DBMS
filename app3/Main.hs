@@ -71,6 +71,13 @@ runExecuteIO (Free step) = do
           fileContent <- readFile relativePath
           return (next fileContent)
         runStep (Lib3.ParseStringOfFile fileContent next) = do
-          let parseContent = Lib3.checkForParsing fileContent
+          let parseContent = Lib3.parseContentToDataFrame fileContent
           return (next parseContent)
+        runStep (Lib3.SerializeDataFrameToYAML tableName df next) = do
+          returnedDf <- Lib3.writeDataFrameToYAML tableName df
+          return (next returnedDf)
+        runStep (Lib3.CheckDataFrame df next) = do
+          let validationResult = Lib1.validateDataFrame df
+          return (next validationResult)
+
 

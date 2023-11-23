@@ -1,0 +1,10 @@
+columns:
+- name: id
+  dataType: Int
+- name: name
+  dataType: String
+- name: surname
+  dataType: String
+rows:
+- [1, Vi, Po]
+- [2, Ed, Dl]
