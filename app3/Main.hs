@@ -67,12 +67,10 @@ runExecuteIO (Free step) = do
         runStep :: Lib3.ExecutionAlgebra a -> IO a
         runStep (Lib3.GetTime next) = getCurrentTime >>= return . next
         runStep (Lib3.LoadFile tableName next) = do
-          let relativePath = getPath tableName
+          let relativePath = Lib3.getPath tableName
           fileContent <- readFile relativePath
           return (next fileContent)
-
-
---Dont understand in which directory we are in when executing the program
-getPath :: String -> String
-getPath tableName = "db/" ++ tableName ++ ".yaml"
+        runStep (Lib3.ParseStringOfFile fileContent next) = do
+          let parseContent = Lib3.checkForParsing fileContent
+          return (next parseContent)
 

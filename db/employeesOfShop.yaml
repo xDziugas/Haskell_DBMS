@@ -1,8 +1,10 @@
-employeesOfShop:
   columns:
-    - id: Int
-    - name: String
-    - department: String
+    - name: id
+      dataType: Int
+    - name: name
+      dataType: String
+    - name: department
+      dataType: String
   rows:
     - [101, Alice, HR]
     - [102, Bob, IT]

@@ -1,8 +1,10 @@
-products:
   columns:
-    - product_id: Int
-    - name: String
-    - price: Int
+    - name: product_id
+      dataType: Int
+    - name: name
+      dataType: String
+    - name: price
+      dataType: Int
   rows:
     - [201, Laptop, 1200]
     - [202, Smartphone, 800]

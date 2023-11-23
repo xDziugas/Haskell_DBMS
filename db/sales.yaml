@@ -1,11 +1,12 @@
-sales:
   columns:
-    - sale_id: Int
-    - product_id: Int
-    - quantity: Int
+  - name: sales
+    dataType: Int
+  - name: product_id
+    dataType: Int
+  - name: quantity
+    dataType: Int
   rows:
-    - [301, 202, 15]
-    - [302, 203, 20]
-    - [303, 201, 10]
-    - [304, 204, 25]
-  
+  - [301, 202, 15]
+  - [302, 203, 20]
+  - [303, 201, 10]
+  - [304, 204, 25]

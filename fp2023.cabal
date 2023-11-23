@@ -40,7 +40,9 @@ library
   build-depends:
       aeson
     , base >=4.7 && <5
+    , bytestring
     , free
+    , text
     , time
     , transformers
     , yaml
@@ -58,11 +60,13 @@ executable fp2023-manipulate
   build-depends:
       aeson
     , base >=4.7 && <5
+    , bytestring
     , extra
     , fp2023
     , free
     , repline
     , terminal-size
+    , text
     , time
     , yaml
   default-language: Haskell2010
@@ -79,11 +83,13 @@ executable fp2023-select-all
   build-depends:
       aeson
     , base >=4.7 && <5
+    , bytestring
     , extra
     , fp2023
     , free
     , repline
     , terminal-size
+    , text
     , yaml
   default-language: Haskell2010
 
@@ -99,11 +105,13 @@ executable fp2023-select-more
   build-depends:
       aeson
     , base >=4.7 && <5
+    , bytestring
     , extra
     , fp2023
     , free
     , repline
     , terminal-size
+    , text
     , yaml
   default-language: Haskell2010
 
@@ -120,8 +128,10 @@ test-suite fp2023-test
   build-depends:
       aeson
     , base >=4.7 && <5
+    , bytestring
     , fp2023
     , free
     , hspec
+    , text
     , yaml
   default-language: Haskell2010

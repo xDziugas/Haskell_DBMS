@@ -1,11 +1,13 @@
-tasks:
-  columns:
-    - task_id: Int
-    - description: String
-    - is_completed: Bool
-  rows:
-    - [601, Setup project environment, false]
-    - [602, Complete initial documentation, true]
-    - [603, Implement core features, false]
-    - [604, Conduct code review, false]
-    - [605, Prepare for deployment, true]
+columns:
+- name: task_id
+  dataType: Int
+- name: description
+  dataType: String
+- name: is_completed
+  dataType: Bool
+rows:
+- [601, Setup project environment, false]
+- [602, Complete initial documentation, true]
+- [603, Implement core features, false]
+- [604, Conduct code review, false]
+- [605, Prepare for deployment, true]

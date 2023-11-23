@@ -1,9 +1,12 @@
-customerFeedback:
   columns:
-    - feedback_id: Int
-    - customer_id: Int
-    - rating: Int
-    - comment: String
+    - name: feedback_id
+      dataType: Int
+    - name: customer_id
+      dataType: Int
+    - name: rating
+      dataType: Int
+    - name: comment
+      dataType: String
   rows:
     - [701, 401, 5, Excellent service]
     - [702, 403, null, Good, but room for improvement]
