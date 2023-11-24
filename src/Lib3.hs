@@ -6,7 +6,8 @@ module Lib3
     ExecutionAlgebra(..),
     parseContentToDataFrame,
     getPath,
-    writeDataFrameToYAML
+    writeDataFrameToYAML,
+    loadFileTest
   )
 where
 
@@ -68,7 +69,8 @@ type Execution = Free ExecutionAlgebra
 
 
 data ExecutionAlgebra next
-  = LoadFile TableName (FileContent -> next)  
+  = LoadFileTest TableName (Either ErrorMessage DataFrame -> next)
+  | LoadFile TableName (FileContent -> next)  
   | GetTime (UTCTime -> next)
   | ParseStringOfFile FileContent ((Either ErrorMessage DataFrame) -> next)
   | SerializeDataFrameToYAML TableName DataFrame (DataFrame -> next)
@@ -79,6 +81,8 @@ data ExecutionAlgebra next
   | ExecuteDelete DataFrame ParsedStatement (Either ErrorMessage DataFrame -> next)
   deriving Functor
 
+loadFileTest :: TableName -> Execution (Either ErrorMessage DataFrame)
+loadFileTest tableName = liftF $ LoadFileTest tableName id
 
 loadFile :: TableName -> Execution FileContent
 loadFile name = liftF $ LoadFile name id
