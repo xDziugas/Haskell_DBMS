@@ -26,6 +26,8 @@ import Data.List (findIndices, findIndex, transpose)
 import Data.Maybe (fromMaybe, isNothing, catMaybes, listToMaybe, isJust)
 import Text.Read (readMaybe)
 import Data.Maybe (fromJust, mapMaybe)
+import Control.Monad (foldM)
+
 
 
 
@@ -83,6 +85,10 @@ runExecuteIO (Free step) = do
           let processedData = executeSelectOperation dfs stmt
           return $ next processedData
 
+        runStep (Lib3.ExecuteUpdate df stmt next) = do
+          let processedData = executeUpdateOperation df stmt
+          return $ next processedData
+
         runStep (Lib3.GetTime next) = getCurrentTime >>= return . next
 
         runStep (Lib3.LoadFile tableName next) = do
@@ -116,6 +122,61 @@ runExecuteIO (Free step) = do
 
         getTableNamesFromStatement :: ParsedStatement -> [TableName]
         getTableNamesFromStatement stmt@Select{qeFrom = tableNames} = tableNames
+
+        ------------------- Execute UPDATE -------------------
+        ------------------------------------------------------
+        executeUpdateOperation :: DataFrame -> ParsedStatement -> Either ErrorMessage DataFrame
+        executeUpdateOperation df (Update _ setConditions maybeWhere) =
+            applyUpdates df (transformSetConditions setConditions) maybeWhere
+        executeUpdateOperation _ _ = Left "Invalid operation"
+
+        applyUpdates :: DataFrame -> [(String, String)] -> Maybe [Condition] -> Either ErrorMessage DataFrame
+        applyUpdates (DataFrame cols rows) setConditions maybeWhere =
+            let updatedRows = map (updateRowIfMatched setConditions maybeWhere cols) rows
+            in Right $ DataFrame cols updatedRows
+
+        updateRowIfMatched :: [(String, String)] -> Maybe [Condition] -> [Column] -> Row -> Row
+        updateRowIfMatched setConditions maybeWhere columns row =
+            case rowMatchesWhere maybeWhere columns row of
+                Right True -> applySetConditions columns setConditions row
+                _ -> row
+
+        applySetConditions :: [Column] -> [(String, String)] -> Row -> Row
+        applySetConditions columns setConditions row =
+            foldr (\(colName, newValue) accRow -> updateRowValue columns accRow colName newValue) row setConditions
+
+        updateRowValue :: [Column] -> Row -> String -> String -> Row
+        updateRowValue columns row colName newValue =
+            case findIndex (\(Column name _) -> name == colName) columns of
+                Just colIndex -> replaceAtIndex colIndex (parseValue newValue) row
+                Nothing -> row
+
+        replaceAtIndex :: Int -> a -> [a] -> [a]
+        replaceAtIndex i newVal list = take i list ++ [newVal] ++ drop (i + 1) list
+
+        parseValue :: String -> Value
+        parseValue valStr =
+            case readMaybe valStr :: Maybe Integer of
+                Just intVal -> IntegerValue intVal
+                Nothing -> StringValue valStr
+
+        rowMatchesWhere :: Maybe [Condition] -> [Column] -> Row -> Either ErrorMessage Bool
+        rowMatchesWhere Nothing _ _ = Right True
+        rowMatchesWhere (Just conditions) columns row = allM (conditionSatisfied row columns) conditions
+
+        allM :: Monad m => (a -> m Bool) -> [a] -> m Bool
+        allM f = foldM (\acc x -> if acc then f x else return False) True
+
+        transformSetConditions :: [Condition] -> [(String, String)]
+        transformSetConditions conditions = mapMaybe conditionToUpdate conditions
+
+        conditionToUpdate :: Condition -> Maybe (String, String)
+        conditionToUpdate (Equals columnName newValue) = Just (columnName, newValue)
+        conditionToUpdate _ = Nothing  -- Ignore conditions that are not column updates
+
+
+
+
 
         ------------------- Execute SELECT -------------------
         ------------------------------------------------------
@@ -213,7 +274,7 @@ runExecuteIO (Free step) = do
                     Just intVal -> IntegerValue intVal
                     Nothing -> case readMaybe literal :: Maybe Bool of
                         Just boolVal -> BoolValue boolVal
-                        Nothing -> StringValue literal  -- Treating as a string if not an integer or boolean
+                        Nothing -> StringValue literal  -- String if not an integer or boolean
 
             findValueInRow :: String -> Maybe Value
             findValueInRow colName = do
@@ -298,7 +359,6 @@ runExecuteIO (Free step) = do
         getColumnIndicesByName :: [Column] -> ValueExpr -> [Int]
         getColumnIndicesByName allCols (Name colName) =
             findIndices (\(Column name _) -> name == colName) allCols
-        -- Extend for other types of ValueExpr as needed
 
         projectRow :: [Int] -> [Value] -> [Value]
         projectRow colIndices row = map (row !!) colIndices
