@@ -3,7 +3,7 @@ import Data.Maybe ()
 import DataFrame (Column (..), ColumnType (..), DataFrame (..), Row, Value (..))
 import InMemoryTables qualified as D
 import Lib1
-import Lib2 (ColumnName (..), Condition (..), ParsedStatement (Select, ShowTable, ShowTables), executeStatement, parseStatement)
+import Lib2 (ParsedStatement (..), executeStatement, parseStatement)
 import Lib2 qualified
 import Test.Hspec
 

@@ -11,12 +11,13 @@
 
 module Lib2
   ( parseStatement,
-    ParsedStatement,
+    ParsedStatement (..),
+    executeStatement,
   )
 where
 
 import Control.Applicative ( Alternative(..), optional )
-import Data.Char (isAlphaNum, toLower)
+import Data.Char (isAlphaNum, toLower, isSymbol)
 import DataFrame (DataFrame, Column)
 import InMemoryTables (TableName)
 import Control.Monad (void)
@@ -28,6 +29,9 @@ type ErrorMessage = String
 newtype Parser a = Parser {
     runParser :: String -> Either ErrorMessage (String, a)
 }
+
+executeStatement :: ParsedStatement -> Either ErrorMessage DataFrame
+executeStatement _ = Left "Not implemented"
 
 instance Functor Parser where
   fmap :: (a -> b) -> Parser a -> Parser b
@@ -135,7 +139,7 @@ keywordP w = tokenP $ stringP w
 
 -- Parse identifier (alphanumeric name)
 identifierP :: Parser String
-identifierP = tokenP $ some $ satisfy isAlphaNum
+identifierP = tokenP $ some $ satisfy (\c -> isAlphaNum c || c == '_')
 
 -- Parses string literal (i.e. "multiple words string"), neveikia, reik uztestuot
 stringLiteralP :: Parser String
