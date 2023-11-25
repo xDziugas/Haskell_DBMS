@@ -133,7 +133,13 @@ executeSql sql = case parseStatement sql of
         loadFile tableName >>= \fileContent -> 
         parseFileContent fileContent >>= \eitherDf ->
         case eitherDf of
-            Right df -> executeInsert df stmt
+            Right df -> 
+                executeInsert df stmt >>= \insertResult ->
+                case insertResult of
+                    Right updatedDataFrame -> do
+                        serializedResult <- serializeDataFrameToYAML tableName updatedDataFrame
+                        return $ Right serializedResult
+                    Left errMsg -> return $ Left errMsg
             Left errMsg -> return $ Left errMsg
 
     Right stmt@(Update tableName _ _) ->
@@ -144,11 +150,9 @@ executeSql sql = case parseStatement sql of
                 executeUpdate df stmt >>= \updateResult ->
                 case updateResult of
                     Right updatedDf -> do
-                        -- Execute serialization and return its result
                         serializedResult <- serializeDataFrameToYAML tableName updatedDf
                         return $ Right serializedResult
-                    Left errMsg -> 
-                        return $ Left errMsg
+                    Left errMsg -> return $ Left errMsg
             Left errMsg -> 
                 return $ Left errMsg
 

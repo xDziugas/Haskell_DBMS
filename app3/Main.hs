@@ -89,6 +89,10 @@ runExecuteIO (Free step) = do
           let processedData = executeUpdateOperation df stmt
           return $ next processedData
 
+        runStep (Lib3.ExecuteInsert df stmt next) = do
+          let processedData = executeInsertOperation df stmt
+          return $ next processedData
+
         runStep (Lib3.GetTime next) = getCurrentTime >>= return . next
 
         runStep (Lib3.LoadFile tableName next) = do
@@ -122,6 +126,17 @@ runExecuteIO (Free step) = do
 
         getTableNamesFromStatement :: ParsedStatement -> [TableName]
         getTableNamesFromStatement stmt@Select{qeFrom = tableNames} = tableNames
+
+        ------------------- Execute DELETE -------------------
+        ------------------------------------------------------
+        executeInsertOperation :: DataFrame -> ParsedStatement -> Either ErrorMessage DataFrame
+        executeInsertOperation (DataFrame cols rows) (Insert tableName colNames values) =
+            if length colNames == length values then
+                let newRow = map parseValue values
+                in Right $ DataFrame cols (rows ++ [newRow])
+            else
+                Left "Column names and values count mismatch"
+        executeInsertOperation _ _ = Left "Invalid insert operation"
 
         ------------------- Execute UPDATE -------------------
         ------------------------------------------------------
@@ -158,7 +173,9 @@ runExecuteIO (Free step) = do
         parseValue valStr =
             case readMaybe valStr :: Maybe Integer of
                 Just intVal -> IntegerValue intVal
-                Nothing -> StringValue valStr
+                Nothing -> case readMaybe valStr :: Maybe Bool of
+                    Just boolVal -> BoolValue boolVal
+                    Nothing -> StringValue valStr
 
         rowMatchesWhere :: Maybe [Condition] -> [Column] -> Row -> Either ErrorMessage Bool
         rowMatchesWhere Nothing _ _ = Right True
