@@ -127,7 +127,7 @@ runExecuteIO (Free step) = do
         getTableNamesFromStatement :: ParsedStatement -> [TableName]
         getTableNamesFromStatement stmt@Select{qeFrom = tableNames} = tableNames
 
-        ------------------- Execute DELETE -------------------
+        ------------------- Execute INSERT -------------------
         ------------------------------------------------------
         executeInsertOperation :: DataFrame -> ParsedStatement -> Either ErrorMessage DataFrame
         executeInsertOperation (DataFrame cols rows) (Insert tableName colNames values) =
