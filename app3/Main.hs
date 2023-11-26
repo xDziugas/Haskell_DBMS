@@ -21,11 +21,10 @@ import System.Console.Repline
   )
 import System.Console.Terminal.Size (Window, size, width)
 
---temp imp
-import Data.List (findIndices, findIndex, transpose)
-import Data.Maybe (fromMaybe, isNothing, catMaybes, listToMaybe, isJust)
+import Data.List (findIndices, findIndex)
+import Data.Maybe (fromMaybe, isNothing)
 import Text.Read (readMaybe)
-import Data.Maybe (fromJust, mapMaybe)
+import Data.Maybe (fromJust)
 import Control.Monad (foldM)
 
 
