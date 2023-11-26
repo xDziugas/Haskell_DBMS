@@ -1,7 +1,7 @@
   columns:
     - name: id
       dataType: Int
-    - name: name
+    - name: namee
       dataType: String
     - name: department
       dataType: String
