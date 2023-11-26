@@ -10,6 +10,7 @@ module Lib3
     executeSelectOperation,
     executeUpdateOperation,
     executeInsertOperation,
+    executeDeleteOperation,
     runExecuteIOTest
   )
 where
@@ -295,12 +296,47 @@ serializeValue (StringValue s)  = s
 serializeValue (BoolValue b)    = map toLower $ show b 
 serializeValue NullValue        = "null"
 
-
-
-
-
 getPath :: String -> String
 getPath tableName = "db/" ++ tableName ++ ".yaml"
+
+
+------------------- Execute DELETE -------------------
+------------------------------------------------------
+
+executeDeleteOperation :: DataFrame -> ParsedStatement -> Either ErrorMessage DataFrame
+executeDeleteOperation (DataFrame cols rows) (Delete _ maybeWhere) =
+    case maybeWhere of
+        Just conditions ->
+            let updatedRows = filter (not . rowMatchesConditions conditions cols) rows
+            in Right $ DataFrame cols updatedRows
+        Nothing -> Right $ DataFrame cols []  -- If no conditions are provided, all rows are removed
+executeDeleteOperation _ _ = Left "Invalid delete operation"
+
+rowMatchesConditions :: [Condition] -> [Column] -> Row -> Bool
+rowMatchesConditions conditions columns row = 
+    all isConditionMet conditions
+    where
+      isConditionMet cond = case conditionSatisfied row columns cond of
+                                Right True -> True
+                                _ -> False
+
+
+findValueInRow :: Row -> String -> [Column] -> Maybe Value
+findValueInRow row colName cols =
+    case findIndex (\(Column name _) -> name == colName) cols of
+        Just colIndex -> if colIndex >= 0 && colIndex < length row
+                         then Just (row !! colIndex)
+                         else Nothing
+        Nothing -> Nothing
+
+parseLiteral :: String -> Maybe Value
+parseLiteral literal =
+    case readMaybe literal :: Maybe Integer of
+        Just intVal -> Just $ IntegerValue intVal
+        Nothing -> case readMaybe literal :: Maybe Bool of
+            Just boolVal -> Just $ BoolValue boolVal
+            Nothing -> Just $ StringValue literal
+
 
 
 
@@ -463,7 +499,7 @@ rowSatisfiesAllConditions conditions columns row = do
     results <- traverse (conditionSatisfied row columns) conditions
     return $ all id results
 
-
+-- The GOAT function, i love it so mutch
 conditionSatisfied :: Row -> [Column] -> Condition -> Either ErrorMessage Bool
 conditionSatisfied row columns condition = case condition of
     Equals colName1 colName2 ->
@@ -610,6 +646,10 @@ runExecuteIOTest (Free step) = do
 
         runStep (ExecuteInsert df stmt next) = do
           let processedData = executeInsertOperation df stmt
+          return $ next processedData
+
+        runStep (ExecuteDelete df stmt next) = do
+          let processedData = executeDeleteOperation df stmt
           return $ next processedData
 
         runStep (GetTime next) = do
