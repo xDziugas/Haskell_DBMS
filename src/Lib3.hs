@@ -127,7 +127,11 @@ loadAndParseMultipleTables tables = chain tables []
     chain (t:ts) dfs = loadFile t >>= \fileContent -> 
                     parseFileContent fileContent >>= \eitherDf ->
                     case eitherDf of
-                      Right df -> chain ts (dfs ++ [df])
+                      Right df -> 
+                          checkDataFrame df >>= \validationResult ->
+                          case validationResult of
+                              Right validatedDf -> chain ts (dfs ++ [validatedDf])
+                              Left errMsg -> return $ Left errMsg
                       Left errMsg -> return $ Left errMsg
 
 executeSql :: String -> Execution (Either ErrorMessage DataFrame)
@@ -143,11 +147,15 @@ executeSql sql = case parseStatement sql of
         parseFileContent fileContent >>= \eitherDf ->
         case eitherDf of
             Right df -> 
-                executeInsert df stmt >>= \insertResult ->
-                case insertResult of
-                    Right updatedDataFrame -> do
-                        serializedResult <- serializeDataFrameToYAML tableName updatedDataFrame
-                        return $ Right serializedResult
+                checkDataFrame df >>= \validationResult ->
+                case validationResult of
+                    Right validatedDf ->
+                        executeInsert validatedDf stmt >>= \insertResult ->
+                        case insertResult of
+                            Right updatedDataFrame -> 
+                                serializeDataFrameToYAML tableName updatedDataFrame >>= \serializedResult ->
+                                return $ Right serializedResult
+                            Left errMsg -> return $ Left errMsg
                     Left errMsg -> return $ Left errMsg
             Left errMsg -> return $ Left errMsg
 
@@ -156,20 +164,29 @@ executeSql sql = case parseStatement sql of
         parseFileContent fileContent >>= \eitherDf ->
         case eitherDf of
             Right df -> 
-                executeUpdate df stmt >>= \updateResult ->
-                case updateResult of
-                    Right updatedDf -> do
-                        serializedResult <- serializeDataFrameToYAML tableName updatedDf
-                        return $ Right serializedResult
+                checkDataFrame df >>= \validationResult ->
+                case validationResult of
+                    Right validatedDf ->
+                        executeUpdate validatedDf stmt >>= \updateResult ->
+                        case updateResult of
+                            Right updatedDf -> 
+                                serializeDataFrameToYAML tableName updatedDf >>= \serializedResult ->
+                                return $ Right serializedResult
+                            Left errMsg -> return $ Left errMsg
                     Left errMsg -> return $ Left errMsg
-            Left errMsg -> 
-                return $ Left errMsg
+            Left errMsg -> return $ Left errMsg
 
     Right stmt@(Delete tableName _) ->
         loadFile tableName >>= \fileContent -> 
         parseFileContent fileContent >>= \eitherDf ->
         case eitherDf of
-            Right df -> executeDelete df stmt
+            Right df -> 
+                checkDataFrame df >>= \validationResult ->
+                case validationResult of
+                    Right validatedDf -> 
+                        executeDelete validatedDf stmt >>= \deleteResult ->
+                        return $ deleteResult
+                    Left errMsg -> return $ Left errMsg
             Left errMsg -> return $ Left errMsg
 
     Right stmt@(Now) ->
@@ -178,6 +195,7 @@ executeSql sql = case parseStatement sql of
           return $ Right df
 
     Left errorMsg -> return $ Left errorMsg
+
 
 
 
