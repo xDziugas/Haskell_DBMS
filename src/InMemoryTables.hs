@@ -101,7 +101,20 @@ tableTestAggregateJoin =
       ]
   )
 
+tableTasks :: (TableName, DataFrame)
+tableTasks =
+  ( "tasks",
+    DataFrame
+      [Column "task_id" IntegerType, Column "description" StringType, Column "is_completed" BoolType]
+      [  [IntegerValue 601, StringValue "Setup project environment", BoolValue False],
+         [IntegerValue 602, StringValue "Complete initial documentation", BoolValue True],
+         [IntegerValue 603, StringValue "Implement core features", BoolValue False],
+         [IntegerValue 604, StringValue "Conduct code review", BoolValue False],
+         [IntegerValue 605, StringValue "Prepare for deployment", BoolValue True]
+      ]
+  )
+
 
 database :: [(TableName, DataFrame)]
-database = [tableEmployees, tableEmployees2, tableInvalid1, tableInvalid2, tableLongStrings, tableWithNulls, tableTestAggregateJoin]
+database = [tableEmployees, tableEmployees2, tableTasks, tableInvalid1, tableInvalid2, tableLongStrings, tableWithNulls, tableTestAggregateJoin]
 
