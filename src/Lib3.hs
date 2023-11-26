@@ -264,11 +264,21 @@ getPath tableName = "db/" ++ tableName ++ ".yaml"
 executeInsertOperation :: DataFrame -> ParsedStatement -> Either ErrorMessage DataFrame
 executeInsertOperation (DataFrame cols rows) (Insert tableName colNames values) =
     if length colNames == length values then
-        let newRow = map parseValue values
+        let newRow = createRowWithDefaults cols colNames values
         in Right $ DataFrame cols (rows ++ [newRow])
     else
         Left "Column names and values count mismatch"
 executeInsertOperation _ _ = Left "Invalid insert operation"
+
+createRowWithDefaults :: [Column] -> [String] -> [String] -> Row
+createRowWithDefaults allCols insertCols values = 
+    let colValuePairs = zip insertCols (map parseValue values)
+    in map (findOrDefault colValuePairs) allCols
+
+findOrDefault :: [(String, Value)] -> Column -> Value
+findOrDefault colValuePairs (Column colName _) = 
+    fromMaybe NullValue (lookup colName colValuePairs)
+
 
 ------------------- Execute UPDATE -------------------
 ------------------------------------------------------
