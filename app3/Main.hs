@@ -117,15 +117,11 @@ runExecuteIO (Free step) = do
 
         -- Mock SELECT operation
         executeSelectMock :: [DataFrame] -> ParsedStatement -> Either ErrorMessage DataFrame
-        executeSelectMock dataFrames stmt = do
-            let tableNames = getTableNamesFromStatement stmt  -- Implement this function
+        executeSelectMock dataFrames stmt@Select{qeFrom = tableNames} = do
             let maybeDataFrames = map (`lookup` InMemoryTables.database) tableNames
             case sequence maybeDataFrames of
                 Just dfs -> executeSelectOperation dfs stmt 
                 Nothing -> Left "One or more tables not found in InMemoryTables.database"
-
-        getTableNamesFromStatement :: ParsedStatement -> [TableName]
-        getTableNamesFromStatement stmt@Select{qeFrom = tableNames} = tableNames
 
         ------------------- Execute INSERT -------------------
         ------------------------------------------------------
@@ -142,29 +138,32 @@ runExecuteIO (Free step) = do
         ------------------------------------------------------
         executeUpdateOperation :: DataFrame -> ParsedStatement -> Either ErrorMessage DataFrame
         executeUpdateOperation df (Update _ setConditions maybeWhere) =
-            applyUpdates df (transformSetConditions setConditions) maybeWhere
+            applyUpdates df setConditions maybeWhere
         executeUpdateOperation _ _ = Left "Invalid operation"
 
-        applyUpdates :: DataFrame -> [(String, String)] -> Maybe [Condition] -> Either ErrorMessage DataFrame
+        applyUpdates :: DataFrame -> [Condition] -> Maybe [Condition] -> Either ErrorMessage DataFrame
         applyUpdates (DataFrame cols rows) setConditions maybeWhere =
-            let updatedRows = map (updateRowIfMatched setConditions maybeWhere cols) rows
-            in Right $ DataFrame cols updatedRows
+            case traverse (updateRowIfMatched setConditions maybeWhere cols) rows of
+                Right updatedRows -> Right $ DataFrame cols updatedRows
+                Left errorMsg -> Left errorMsg
 
-        updateRowIfMatched :: [(String, String)] -> Maybe [Condition] -> [Column] -> Row -> Row
+        updateRowIfMatched :: [Condition] -> Maybe [Condition] -> [Column] -> Row -> Either ErrorMessage Row
         updateRowIfMatched setConditions maybeWhere columns row =
             case rowMatchesWhere maybeWhere columns row of
                 Right True -> applySetConditions columns setConditions row
-                _ -> row
+                Right False -> Right row
+                Left errMsg -> Left errMsg
 
-        applySetConditions :: [Column] -> [(String, String)] -> Row -> Row
+        applySetConditions :: [Column] -> [Condition] -> Row -> Either ErrorMessage Row
         applySetConditions columns setConditions row =
-            foldr (\(colName, newValue) accRow -> updateRowValue columns accRow colName newValue) row setConditions
+            foldM (applyConditionToUpdateRow columns) row setConditions
 
-        updateRowValue :: [Column] -> Row -> String -> String -> Row
-        updateRowValue columns row colName newValue =
-            case findIndex (\(Column name _) -> name == colName) columns of
-                Just colIndex -> replaceAtIndex colIndex (parseValue newValue) row
-                Nothing -> row
+        applyConditionToUpdateRow :: [Column] -> Row -> Condition -> Either ErrorMessage Row
+        applyConditionToUpdateRow columns row (Equals columnName newValue) =
+            case findIndex (\(Column name _) -> name == columnName) columns of
+                Just colIndex -> Right $ replaceAtIndex colIndex (parseValue newValue) row
+                Nothing -> Left $ "Column not found: " ++ columnName
+        applyConditionToUpdateRow _ _ _ = Left "Syntax error"
 
         replaceAtIndex :: Int -> a -> [a] -> [a]
         replaceAtIndex i newVal list = take i list ++ [newVal] ++ drop (i + 1) list
@@ -182,16 +181,7 @@ runExecuteIO (Free step) = do
         rowMatchesWhere (Just conditions) columns row = allM (conditionSatisfied row columns) conditions
 
         allM :: Monad m => (a -> m Bool) -> [a] -> m Bool
-        allM f = foldM (\acc x -> if acc then f x else return False) True
-
-        transformSetConditions :: [Condition] -> [(String, String)]
-        transformSetConditions conditions = mapMaybe conditionToUpdate conditions
-
-        conditionToUpdate :: Condition -> Maybe (String, String)
-        conditionToUpdate (Equals columnName newValue) = Just (columnName, newValue)
-        conditionToUpdate _ = Nothing  -- Ignore conditions that are not column updates
-
-
+        allM f = foldM (\prev nxt -> if prev then f nxt else return False) True
 
 
 
@@ -221,20 +211,20 @@ runExecuteIO (Free step) = do
         joinTwoDataFramesOnCondition conditions (DataFrame cols1 rows1) (DataFrame cols2 rows2) = DataFrame joinedColumns joinedRows
           where
             commonColumns = map (\(Equals colName1 colName2) -> (colName1, colName2)) conditions
-            excludedCols2 = filter (\(Column name _) -> notElem name (map snd commonColumns)) cols2
-            joinedColumns = cols1 ++ excludedCols2
+            excludedCols = filter (\(Column name _) -> notElem name (map snd commonColumns)) cols2
+            joinedColumns = cols1 ++ excludedCols
             joinedRows = [r1 ++ filterRowByColumns r2 cols2 | r1 <- rows1, r2 <- rows2, rowsMatchOnConditions r1 r2 conditions cols1 cols2]
 
             filterRowByColumns :: Row -> [Column] -> Row
             filterRowByColumns row allCols = 
-                map fst . filter (\(_, col) -> elem col excludedCols2) $ zip row allCols
+                map fst . filter (\(_, col) -> elem col excludedCols) $ zip row allCols
 
             rowsMatchOnConditions :: Row -> Row -> [Condition] -> [Column] -> [Column] -> Bool
             rowsMatchOnConditions r1 r2 conds cols1 cols2 =
-                all (conditionSatisfied r1 r2 cols1 cols2) conds
+                all (conditionSatisfiedForJoin r1 r2 cols1 cols2) conds
 
-            conditionSatisfied :: Row -> Row -> [Column] -> [Column] -> Condition -> Bool
-            conditionSatisfied r1 r2 cols1 cols2 (Equals colName1 colName2) =
+            conditionSatisfiedForJoin :: Row -> Row -> [Column] -> [Column] -> Condition -> Bool
+            conditionSatisfiedForJoin r1 r2 cols1 cols2 (Equals colName1 colName2) =
                 let val1 = findValueInRow r1 colName1 cols1
                     val2 = findValueInRow r2 colName2 cols2
                 in case (val1, val2) of
