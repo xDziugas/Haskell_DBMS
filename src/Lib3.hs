@@ -472,8 +472,10 @@ conditionSatisfied row columns condition = case condition of
 ------------------- Project cols -------------------
 projectColumns :: DataFrame -> [ValueExpr] -> Either ErrorMessage DataFrame
 projectColumns (DataFrame allCols allRows) valueExprs =
-    if any isAggregate valueExprs && all isAggregate valueExprs
-    then calculateAggregate allCols allRows valueExprs
+    if all isAggregate valueExprs
+        then calculateAggregate allCols allRows valueExprs
+    else if any isAggregate valueExprs 
+        then Left "Column names alongside aggregate functions not allowed"
     else let colIndices = concatMap (getColumnIndicesByName allCols) valueExprs
         in if not (null colIndices)
             then Right $ DataFrame (map (allCols !!) colIndices) (map (projectRow colIndices) allRows)
