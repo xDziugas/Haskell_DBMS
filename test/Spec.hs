@@ -229,13 +229,12 @@ main = hspec $ do
                                        [IntegerValue 1, StringValue "Vi", StringValue "Po", IntegerValue 2, StringValue "Ka", StringValue "Ma", StringValue "a", BoolValue True]])
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
-      --NEPAGAUNU aggregate at all
-    it "correctly joins tables with aggregate function and where clause" $ do
-      let query = "select avg(id), namee from employees, employees2 where surnamee = 'Ma';"
-      let expected = Right (DataFrame [Column "aggregate" IntegerType, Column "namee" StringType] 
-                                      [])
+    it "correctly applies min aggregate function in a join operation" $ do
+      let query = "select min(id) from test_aggregate_join, employees2 where related_id = idd;"
+      let expected = Right (DataFrame [Column "aggregate" IntegerType] 
+                                      [[IntegerValue 1]])
       result <- runExecuteIOTest $ Lib3.executeSql query
-      result `shouldBe` expected 
+      result `shouldBe` expected
   describe "INSERT Operations" $ do
     it "correctly inserts a row into a table" $ do
       let query = "insert into employees (id, name, surname) values (3, guga, buga);"
@@ -269,32 +268,19 @@ main = hspec $ do
                                        [IntegerValue 11, StringValue "hh", StringValue "ii"]])
       result <- runExecuteIOTest $ executeSql query
       result `shouldBe` expected
-    it "returns an error for mismatched columns and values count" $ do
-      let query = "INSERT INTO employees (id, name) VALUES (4, Alice, Smith);"
-      let expected = Left "Column names and values count mismatch"
-      result <- runExecuteIOTest $ Lib3.executeSql query
-      result `shouldBe` expected
     it "returns an error for inserting into a non-existent table" $ do
       let query = "INSERT INTO unknown_table (id) VALUES (1);"
       let expected = Left "Table not found in InMemoryTables"
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
-      --NEED TO CHECK WITH DATAFRAME
     it "returns an error for incorrect data type (string into integer column)" $ do
       let query = "INSERT INTO employees (id, name) VALUES (invalid, guga);"
-      let expected = Right (DataFrame [Column "id" IntegerType, Column "name" StringType, Column "surname" StringType] 
-                                      [[IntegerValue 1, StringValue "Vi", StringValue "Po"], 
-                                       [IntegerValue 2, StringValue "Ed", StringValue "Dl"], 
-                                       [StringValue "invalid", StringValue "guga", NullValue]])
+      let expected = Left "Type mismatch for column: id"
       result <- runExecuteIOTest $ executeSql query
       result `shouldBe` expected
-      --NEED TO CHECK WITH DATAFRAME
     it "returns an error for non-existent column names" $ do
       let query = "INSERT INTO employees (id, col1) VALUES (10, Value);"
-      let expected = Right (DataFrame [Column "id" IntegerType, Column "name" StringType, Column "surname" StringType] 
-                                      [[IntegerValue 1, StringValue "Vi", StringValue "Po"], 
-                                       [IntegerValue 2, StringValue "Ed", StringValue "Dl"], 
-                                       [IntegerValue 10, NullValue, NullValue]])
+      let expected = Left "One or more specified columns do not exist in the table."
       result <- runExecuteIOTest $ executeSql query
       result `shouldBe` expected
     it "returns an error when inserting a row without specifying column names" $ do

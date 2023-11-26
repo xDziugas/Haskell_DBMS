@@ -33,6 +33,7 @@ import Data.Maybe (fromMaybe, isNothing, fromJust)
 import Text.Read (readMaybe)
 import Control.Monad (foldM)
 import Data.Time ( UTCTime, getCurrentTime, formatTime, defaultTimeLocale )
+import qualified Lib1
 
 instance FromJSON Table where
   parseJSON = withObject "Table" $ \v ->
@@ -282,6 +283,22 @@ getPath tableName = "db/" ++ tableName ++ ".yaml"
 
 ------------------- Execute INSERT -------------------
 ------------------------------------------------------
+-- Checks if all insert columns exist in the DataFrame's schema
+validateInsertColumns :: [Column] -> [String] -> Either ErrorMessage ()
+validateInsertColumns allCols insertCols =
+    let allColNames = map (\(Column name _) -> name) allCols
+    in if all (`elem` allColNames) insertCols
+       then Right ()
+       else Left "One or more specified columns do not exist in the table."
+
+createRowWithDefaults :: [Column] -> [String] -> [String] -> Either ErrorMessage Row
+createRowWithDefaults allCols insertCols values = 
+    case validateInsertColumns allCols insertCols of
+        Left errMsg -> Left errMsg
+        Right _ -> 
+            let colValuePairs = zip insertCols (map parseValue values)
+            in traverse (findOrDefault colValuePairs) allCols
+
 executeInsertOperation :: DataFrame -> ParsedStatement -> Either ErrorMessage DataFrame
 executeInsertOperation (DataFrame cols rows) (Insert tableName colNames values) =
     case createRowWithDefaults cols colNames values of
@@ -289,10 +306,6 @@ executeInsertOperation (DataFrame cols rows) (Insert tableName colNames values) 
         Left errMsg -> Left errMsg
 executeInsertOperation _ _ = Left "Invalid insert operation"
 
-createRowWithDefaults :: [Column] -> [String] -> [String] -> Either ErrorMessage Row
-createRowWithDefaults allCols insertCols values = 
-    let colValuePairs = zip insertCols (map parseValue values)
-    in traverse (findOrDefault colValuePairs) allCols
 
 findOrDefault :: [(String, Value)] -> Column -> Either ErrorMessage Value
 findOrDefault colValuePairs (Column colName colType) = 
