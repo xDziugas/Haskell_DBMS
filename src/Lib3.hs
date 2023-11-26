@@ -511,7 +511,9 @@ applyAvg values =
 
 getColumnIndicesByName :: [Column] -> ValueExpr -> [Int]
 getColumnIndicesByName allCols (Name colName) =
-    findIndices (\(Column name _) -> name == colName) allCols
+    if colName == "*" 
+    then [0 .. length allCols - 1]
+    else findIndices (\(Column name _) -> name == colName) allCols
 
 projectRow :: [Int] -> [Value] -> [Value]
 projectRow colIndices row = map (row !!) colIndices
