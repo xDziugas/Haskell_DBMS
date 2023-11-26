@@ -284,21 +284,28 @@ getPath tableName = "db/" ++ tableName ++ ".yaml"
 ------------------------------------------------------
 executeInsertOperation :: DataFrame -> ParsedStatement -> Either ErrorMessage DataFrame
 executeInsertOperation (DataFrame cols rows) (Insert tableName colNames values) =
-    if length colNames == length values then
-        let newRow = createRowWithDefaults cols colNames values
-        in Right $ DataFrame cols (rows ++ [newRow])
-    else
-        Left "Column names and values count mismatch"
+    case createRowWithDefaults cols colNames values of
+        Right newRow -> Right $ DataFrame cols (rows ++ [newRow])
+        Left errMsg -> Left errMsg
 executeInsertOperation _ _ = Left "Invalid insert operation"
 
-createRowWithDefaults :: [Column] -> [String] -> [String] -> Row
+createRowWithDefaults :: [Column] -> [String] -> [String] -> Either ErrorMessage Row
 createRowWithDefaults allCols insertCols values = 
     let colValuePairs = zip insertCols (map parseValue values)
-    in map (findOrDefault colValuePairs) allCols
+    in traverse (findOrDefault colValuePairs) allCols
 
-findOrDefault :: [(String, Value)] -> Column -> Value
-findOrDefault colValuePairs (Column colName _) = 
-    fromMaybe NullValue (lookup colName colValuePairs)
+findOrDefault :: [(String, Value)] -> Column -> Either ErrorMessage Value
+findOrDefault colValuePairs (Column colName colType) = 
+    case lookup colName colValuePairs of
+        Just val -> if isTypeMatch val colType then Right val else Left $ "Type mismatch for column: " ++ colName
+        Nothing -> Right NullValue
+
+isTypeMatch :: Value -> ColumnType -> Bool
+isTypeMatch (IntegerValue _) IntegerType = True
+isTypeMatch (StringValue _) StringType = True
+isTypeMatch (BoolValue _) BoolType = True
+isTypeMatch NullValue _ = True
+isTypeMatch _ _ = False
 
 
 ------------------- Execute UPDATE -------------------
