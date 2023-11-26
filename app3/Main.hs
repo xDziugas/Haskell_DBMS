@@ -4,7 +4,7 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Free (Free (..))
 
 import Data.Functor((<&>))
-import Data.Time ( UTCTime, getCurrentTime )
+import Data.Time ( UTCTime, getCurrentTime, formatTime, defaultTimeLocale )
 import Data.List qualified as L
 import Lib1 qualified
 import Lib2 qualified
@@ -21,9 +21,13 @@ import System.Console.Repline
   )
 import System.Console.Terminal.Size (Window, size, width)
 
---temp imp
 import Data.List (findIndices, findIndex)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isNothing)
+import Text.Read (readMaybe)
+import Data.Maybe (fromJust)
+import Control.Monad (foldM)
+
+
 
 
 type TableName = String
@@ -80,7 +84,20 @@ runExecuteIO (Free step) = do
           let processedData = executeSelectOperation dfs stmt
           return $ next processedData
 
+        runStep (Lib3.ExecuteUpdate df stmt next) = do
+          let processedData = executeUpdateOperation df stmt
+          return $ next processedData
+
+        runStep (Lib3.ExecuteInsert df stmt next) = do
+          let processedData = executeInsertOperation df stmt
+          return $ next processedData
+
         runStep (Lib3.GetTime next) = getCurrentTime >>= return . next
+
+        runStep (Lib3.DisplayTime time next) = do
+          let timestr = formatTime defaultTimeLocale "%F %T" time
+          let df = DataFrame [Column "current_time" StringType] [[StringValue timestr]]
+          return $ next df
 
         runStep (Lib3.LoadFile tableName next) = do
           let relativePath = Lib3.getPath tableName
@@ -104,15 +121,73 @@ runExecuteIO (Free step) = do
 
         -- Mock SELECT operation
         executeSelectMock :: [DataFrame] -> ParsedStatement -> Either ErrorMessage DataFrame
-        executeSelectMock dataFrames stmt = do
-            let tableNames = getTableNamesFromStatement stmt  -- Implement this function
+        executeSelectMock dataFrames stmt@Select{qeFrom = tableNames} = do
             let maybeDataFrames = map (`lookup` InMemoryTables.database) tableNames
             case sequence maybeDataFrames of
                 Just dfs -> executeSelectOperation dfs stmt 
                 Nothing -> Left "One or more tables not found in InMemoryTables.database"
 
-        getTableNamesFromStatement :: ParsedStatement -> [TableName]
-        getTableNamesFromStatement stmt@Select{qeFrom = tableNames} = tableNames
+        ------------------- Execute INSERT -------------------
+        ------------------------------------------------------
+        executeInsertOperation :: DataFrame -> ParsedStatement -> Either ErrorMessage DataFrame
+        executeInsertOperation (DataFrame cols rows) (Insert tableName colNames values) =
+            if length colNames == length values then
+                let newRow = map parseValue values
+                in Right $ DataFrame cols (rows ++ [newRow])
+            else
+                Left "Column names and values count mismatch"
+        executeInsertOperation _ _ = Left "Invalid insert operation"
+
+        ------------------- Execute UPDATE -------------------
+        ------------------------------------------------------
+        executeUpdateOperation :: DataFrame -> ParsedStatement -> Either ErrorMessage DataFrame
+        executeUpdateOperation df (Update _ setConditions maybeWhere) =
+            applyUpdates df setConditions maybeWhere
+        executeUpdateOperation _ _ = Left "Invalid operation"
+
+        applyUpdates :: DataFrame -> [Condition] -> Maybe [Condition] -> Either ErrorMessage DataFrame
+        applyUpdates (DataFrame cols rows) setConditions maybeWhere =
+            case traverse (updateRowIfMatched setConditions maybeWhere cols) rows of
+                Right updatedRows -> Right $ DataFrame cols updatedRows
+                Left errorMsg -> Left errorMsg
+
+        updateRowIfMatched :: [Condition] -> Maybe [Condition] -> [Column] -> Row -> Either ErrorMessage Row
+        updateRowIfMatched setConditions maybeWhere columns row =
+            case rowMatchesWhere maybeWhere columns row of
+                Right True -> applySetConditions columns setConditions row
+                Right False -> Right row
+                Left errMsg -> Left errMsg
+
+        applySetConditions :: [Column] -> [Condition] -> Row -> Either ErrorMessage Row
+        applySetConditions columns setConditions row =
+            foldM (applyConditionToUpdateRow columns) row setConditions
+
+        applyConditionToUpdateRow :: [Column] -> Row -> Condition -> Either ErrorMessage Row
+        applyConditionToUpdateRow columns row (Equals columnName newValue) =
+            case findIndex (\(Column name _) -> name == columnName) columns of
+                Just colIndex -> Right $ replaceAtIndex colIndex (parseValue newValue) row
+                Nothing -> Left $ "Column not found: " ++ columnName
+        applyConditionToUpdateRow _ _ _ = Left "Syntax error"
+
+        replaceAtIndex :: Int -> a -> [a] -> [a]
+        replaceAtIndex i newVal list = take i list ++ [newVal] ++ drop (i + 1) list
+
+        parseValue :: String -> Value
+        parseValue valStr =
+            case readMaybe valStr :: Maybe Integer of
+                Just intVal -> IntegerValue intVal
+                Nothing -> case readMaybe valStr :: Maybe Bool of
+                    Just boolVal -> BoolValue boolVal
+                    Nothing -> StringValue valStr
+
+        rowMatchesWhere :: Maybe [Condition] -> [Column] -> Row -> Either ErrorMessage Bool
+        rowMatchesWhere Nothing _ _ = Right True
+        rowMatchesWhere (Just conditions) columns row = allM (conditionSatisfied row columns) conditions
+
+        allM :: Monad m => (a -> m Bool) -> [a] -> m Bool
+        allM f = foldM (\prev nxt -> if prev then f nxt else return False) True
+
+
 
         ------------------- Execute SELECT -------------------
         ------------------------------------------------------
@@ -126,7 +201,7 @@ runExecuteIO (Free step) = do
                                           then joinDataFrames dataFrames conditions
                                           else head dataFrames
                     -- Apply conditions
-                    let filteredDataFrame = applyConditions joinedDataFrame conditions
+                    filteredDataFrame <- applyConditions joinedDataFrame conditions
                     -- Select columns
                     projectColumns filteredDataFrame columnNames
                 _ -> Left "Invalid statement type for selection operation"
@@ -140,40 +215,161 @@ runExecuteIO (Free step) = do
         joinTwoDataFramesOnCondition conditions (DataFrame cols1 rows1) (DataFrame cols2 rows2) = DataFrame joinedColumns joinedRows
           where
             commonColumns = map (\(Equals colName1 colName2) -> (colName1, colName2)) conditions
-
-            excludedCols2 = filter (\(Column name _) -> notElem name (map snd commonColumns)) cols2
-
-            joinedColumns = cols1 ++ excludedCols2
-
+            excludedCols = filter (\(Column name _) -> notElem name (map snd commonColumns)) cols2
+            joinedColumns = cols1 ++ excludedCols
             joinedRows = [r1 ++ filterRowByColumns r2 cols2 | r1 <- rows1, r2 <- rows2, rowsMatchOnConditions r1 r2 conditions cols1 cols2]
 
             filterRowByColumns :: Row -> [Column] -> Row
             filterRowByColumns row allCols = 
-                map fst . filter (\(_, col) -> elem col excludedCols2) $ zip row allCols
+                map fst . filter (\(_, col) -> elem col excludedCols) $ zip row allCols
 
             rowsMatchOnConditions :: Row -> Row -> [Condition] -> [Column] -> [Column] -> Bool
             rowsMatchOnConditions r1 r2 conds cols1 cols2 =
-                all (conditionSatisfied r1 r2 cols1 cols2) conds
+                all (conditionSatisfiedForJoin r1 r2 cols1 cols2) conds
 
-            conditionSatisfied :: Row -> Row -> [Column] -> [Column] -> Condition -> Bool
-            conditionSatisfied r1 r2 cols1 cols2 (Equals colName1 colName2) =
+            conditionSatisfiedForJoin :: Row -> Row -> [Column] -> [Column] -> Condition -> Bool
+            conditionSatisfiedForJoin r1 r2 cols1 cols2 (Equals colName1 colName2) =
                 let val1 = findValueInRow r1 colName1 cols1
                     val2 = findValueInRow r2 colName2 cols2
-                in val1 == val2
+                in case (val1, val2) of
+                    (Just v1, Just v2) -> v1 == v2
+                    _ -> False
 
             findValueInRow :: Row -> String -> [Column] -> Maybe Value
-            findValueInRow row colName cols = do
-                colIndex <- findIndex (\(Column name _) -> name == colName) cols
-                return (row !! colIndex)
+            findValueInRow row colName cols = 
+                let colIndex = findIndex (\(Column name _) -> name == colName) cols
+                in if colIndex >= Just 0 && colIndex < Just (length row)
+                    then Just (row !! fromJust colIndex)
+                    else Nothing
+
 
         ------------------- Apply conditions -------------------
-        applyConditions :: DataFrame -> [Condition] -> DataFrame
-        applyConditions df conds = df
+        applyConditions :: DataFrame -> [Condition] -> Either ErrorMessage DataFrame
+        applyConditions (DataFrame cols rows) conds = do
+            filteredRows <- traverse (rowSatisfiesAllConditions conds cols) rows
+            return $ DataFrame cols (map fst $ filter snd $ zip rows filteredRows)
+
+        rowSatisfiesAllConditions :: [Condition] -> [Column] -> Row -> Either ErrorMessage Bool
+        rowSatisfiesAllConditions conditions columns row = do
+            results <- traverse (conditionSatisfied row columns) conditions
+            return $ all id results
+
+
+        conditionSatisfied :: Row -> [Column] -> Condition -> Either ErrorMessage Bool
+        conditionSatisfied row columns condition = case condition of
+            Equals colName1 colName2 ->
+                if isColumnName colName1 && isColumnName colName2 then
+                    Right True
+                else
+                    checkCondition (==) colName1 colName2
+            LessThan par1 par2 ->
+                checkIntegerCondition (<) par1 par2
+            GreaterThan par1 par2 ->
+                checkIntegerCondition (>) par1 par2
+            LessEqualThan par1 par2 ->
+                checkIntegerCondition (<=) par1 par2
+            GreaterEqualThan par1 par2 ->
+                checkIntegerCondition (>=) par1 par2
+          where
+            checkCondition :: (Value -> Value -> Bool) -> String -> String -> Either ErrorMessage Bool
+            checkCondition op colName1 colName2 = 
+                case findValueInRow colName1 of
+                    Just val1 -> 
+                        let val2 = parseLiteral colName2
+                        in Right (val1 `op` val2)
+                    Nothing -> Left $ "First operand is not a column name: " ++ colName1
+
+            parseLiteral :: String -> Value
+            parseLiteral literal =
+                case readMaybe literal :: Maybe Integer of
+                    Just intVal -> IntegerValue intVal
+                    Nothing -> case readMaybe literal :: Maybe Bool of
+                        Just boolVal -> BoolValue boolVal
+                        Nothing -> StringValue literal  -- String if not an integer or boolean
+
+            findValueInRow :: String -> Maybe Value
+            findValueInRow colName = do
+                colIndex <- findIndex (\(Column name _) -> name == colName) columns
+                if colIndex >= 0 && colIndex < length row
+                    then Just (row !! colIndex)
+                    else Nothing
+
+
+            checkIntegerCondition :: (Integer -> Integer -> Bool) -> String -> String -> Either ErrorMessage Bool
+            checkIntegerCondition op colName1 colName2 =
+                case findValueInRow colName1 of
+                    Just (IntegerValue val1) -> case readMaybe colName2 of
+                        Just val2 -> Right (val1 `op` val2)
+                        Nothing -> Left $ "Second operand is not an integer: " ++ colName2
+                    _ -> Left $ "Non-integer comparison or first operand not a column name"
+
+            -- To return only if its an Integer
+            parseIntegerLiteral :: String -> Maybe Integer
+            parseIntegerLiteral str = readMaybe str :: Maybe Integer
+
+            isColumnName :: String -> Bool
+            isColumnName name = any (\(Column colName _) -> colName == name) columns
+
+
+
         ------------------- Project cols -------------------
         projectColumns :: DataFrame -> [ValueExpr] -> Either ErrorMessage DataFrame
-        projectColumns df cols = Right df
+        projectColumns (DataFrame allCols allRows) valueExprs =
+            if any isAggregate valueExprs && all isAggregate valueExprs
+            then calculateAggregate allCols allRows valueExprs
+            else let colIndices = concatMap (getColumnIndicesByName allCols) valueExprs
+                in if not (null colIndices)
+                    then Right $ DataFrame (map (allCols !!) colIndices) (map (projectRow colIndices) allRows)
+                    else Left "One or more columns not found"
 
+        isAggregate :: ValueExpr -> Bool
+        isAggregate (AggMin _) = True
+        isAggregate (AggAvg _) = True
+        isAggregate _ = False
 
+        calculateAggregate :: [Column] -> [[Value]] -> [ValueExpr] -> Either ErrorMessage DataFrame
+        calculateAggregate allCols allRows valueExprs = 
+            let aggResults = map (processAggregate allCols allRows) valueExprs
+            in case sequence aggResults of
+                Just results -> Right $ DataFrame [Column "aggregate" IntegerType] [results]
+                Nothing -> Left "Invalid aggregate function"
 
+        processAggregate :: [Column] -> [[Value]] -> ValueExpr -> Maybe Value
+        processAggregate allCols allRows (AggMin colName) = Just $ applyMin $ extractColumnValues allCols allRows colName
+        processAggregate allCols allRows (AggAvg colName) = Just $ applyAvg $ extractColumnValues allCols allRows colName
+        processAggregate _ _ _ = Nothing
 
-                  
+        extractColumnValues :: [Column] -> [[Value]] -> String -> [Value]
+        extractColumnValues allCols allRows colName = 
+            case findIndex (\(Column name _) -> name == colName) allCols of
+                Just colIndex -> map (!! colIndex) allRows
+                Nothing -> []
+
+        applyMin :: [Value] -> Value
+        applyMin [] = NullValue
+        applyMin (x:xs) = myMin x xs
+
+        myMin :: Value -> [Value] -> Value
+        myMin currentMin [] = currentMin
+        myMin (IntegerValue a) (IntegerValue b : rest) = myMin (IntegerValue (min a b)) rest
+        myMin currentMin (_ : rest) = myMin currentMin rest
+
+        applyAvg :: [Value] -> Value
+        applyAvg [] = NullValue
+        applyAvg values =
+          let (sumValue, count) =
+                foldl (\(sm, cnt) value ->
+                  case value of
+                    IntegerValue i -> (sm + i, cnt + 1)
+                    _ -> (sm, cnt)
+                ) (0, 0) values
+          in if count > 0
+            then IntegerValue (sumValue `div` count)
+            else NullValue
+
+        getColumnIndicesByName :: [Column] -> ValueExpr -> [Int]
+        getColumnIndicesByName allCols (Name colName) =
+            findIndices (\(Column name _) -> name == colName) allCols
+
+        projectRow :: [Int] -> [Value] -> [Value]
+        projectRow colIndices row = map (row !!) colIndices
