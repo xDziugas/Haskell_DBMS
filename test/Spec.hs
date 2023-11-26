@@ -35,11 +35,11 @@ main = hspec $ do
                                       [[IntegerValue 1]])
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
-      --join not working
     it "correctly joins tables in the where clause" $ do
       let query = "select name, surname, namee, surnamee from employees, employees2 where id = idd;"
       let expected = Right (DataFrame [Column "name" StringType, Column "surname" StringType, Column "namee" StringType, Column "surnamee" StringType]
-                                      [])
+                                      [[StringValue "Vi", StringValue "Po", StringValue "Jo", StringValue "Ja"],
+                                       [StringValue "Ed", StringValue "Dl", StringValue "Ka", StringValue "Ma"]])
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
     it "correctly chooses all from table" $ do
@@ -115,7 +115,7 @@ main = hspec $ do
       result `shouldBe` expected
     it "doesn't let multiple columns if aggregate function is present" $ do
       let query = "select min(id), name from employees;"
-      let expected = Left "Invalid statement"
+      let expected = Left "Column names alongside aggregate functions not allowed"
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
     it "handles multiple whitespaces" $ do
@@ -144,7 +144,6 @@ main = hspec $ do
       let expected = Left "One or more columns not found"
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
-      --join not working
     it "correctly handles joins with no matching records" $ do
       let query = "select name, surnamee from employees, employees2 where id = 999;"
       let expected = Right (DataFrame [Column "name" StringType, Column "surnamee" StringType] [])
@@ -160,6 +159,40 @@ main = hspec $ do
       let expected = Right (DataFrame [Column "aggregate" IntegerType] [[StringValue "b"]])
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
+    it "correctly handles returning multiple tables without a where clause" $ do
+      let query = "select * from employees, employees2;"
+      let expected = Right (DataFrame [Column "id" IntegerType, Column "name" StringType, Column "surname" StringType,
+                                       Column "idd" IntegerType, Column "namee" StringType, Column "surnamee" StringType]
+                                      [[IntegerValue 1, StringValue "Vi", StringValue "Po", IntegerValue 1, StringValue "Jo", StringValue "Ja"],
+                                       [IntegerValue 1, StringValue "Vi", StringValue "Po", IntegerValue 2, StringValue "Ka", StringValue "Ma"],
+                                       [IntegerValue 2, StringValue "Ed", StringValue "Dl", IntegerValue 1, StringValue "Jo", StringValue "Ja"],
+                                       [IntegerValue 2, StringValue "Ed", StringValue "Dl", IntegerValue 2, StringValue "Ka", StringValue "Ma"]])
+      result <- runExecuteIOTest $ Lib3.executeSql query
+      result `shouldBe` expected
+    it "correctly joins tables with multiple conditions in the where clause" $ do
+      let query = "select name, namee from employees, employees2 where id = idd and surname = surnamee;"
+      let expected = Right (DataFrame [Column "name" StringType, Column "namee" StringType] [])
+      result <- runExecuteIOTest $ Lib3.executeSql query
+      result `shouldBe` expected
+    it "correctly joins tables different columns together with string comparisons" $ do
+      let query = "select * from employees,  employees2 where surname = Po and surnamee = Ma;"
+      let expected = Right (DataFrame [Column "id" IntegerType, Column "name" StringType, Column "surname" StringType,
+                                       Column "idd" IntegerType, Column "namee" StringType, Column "surnamee" StringType]
+                                       [[IntegerValue 1, StringValue "Vi", StringValue "Po", IntegerValue 2, StringValue "Ka", StringValue "Ma"]])
+      result <- runExecuteIOTest $ Lib3.executeSql query
+      result `shouldBe` expected
+    it "correctly handles a cross join" $ do
+      let query = "select * from employees, employees2, flags where flag = a and id = 1;"
+      let expected = Right (DataFrame [Column "id" IntegerType, Column "name" StringType, Column "surname" StringType,
+                                       Column "idd" IntegerType, Column "namee" StringType, Column "surnamee" StringType, 
+                                       Column "flag" StringType, Column "value" BoolType] 
+                                      [[IntegerValue 1, StringValue "Vi", StringValue "Po", IntegerValue 1, StringValue "Jo", StringValue "Ja", StringValue "a", BoolValue True],
+                                       [IntegerValue 1, StringValue "Vi", StringValue "Po", IntegerValue 2, StringValue "Ka", StringValue "Ma", StringValue "a", BoolValue True]])
+      result <- runExecuteIOTest $ Lib3.executeSql query
+      result `shouldBe` expected
+    
+      
+    
     
     
     
