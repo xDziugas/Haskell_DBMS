@@ -6,5 +6,5 @@ columns:
 - name: surname
   dataType: String
 rows:
-- [1, Vi, Po]
-- [2, Ed, Dl]
+- [101, Vi, Po]
+- [102, Ed, Dl]
