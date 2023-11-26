@@ -157,10 +157,10 @@ conditionP = do
 -- Parse a condition operator to Condition data type
 conditionOperatorP :: Parser (String -> String -> Condition)
 conditionOperatorP = (Equals           <$ stringP "=")
-                 <|> (LessThan         <$ stringP "<")
-                 <|> (GreaterThan      <$ stringP ">")
                  <|> (LessEqualThan    <$ stringP "<=")
                  <|> (GreaterEqualThan <$ stringP ">=")
+                 <|> (LessThan         <$ stringP "<")
+                 <|> (GreaterThan      <$ stringP ">")
 
 -- Parse conditions until there is no keyword "AND"
 conditionsP :: Parser [Condition]
