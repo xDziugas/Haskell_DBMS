@@ -25,7 +25,7 @@ import Data.Text (pack, unpack)
 import Data.Aeson.Key (fromString)
 import Lib1 qualified
 import qualified Data.ByteString.Char8 as BS
-import Data.List (intercalate, findIndices, findIndex)
+import Data.List (intercalate, findIndices, findIndex, partition)
 import Data.Char (toLower)
 import Lib2 (parseStatement, ParsedStatement(..), Condition(..), ValueExpr(..))
 import InMemoryTables qualified
@@ -337,19 +337,34 @@ allM f = foldM (\prev nxt -> if prev then f nxt else return False) True
 ------------------- Execute SELECT -------------------
 ------------------------------------------------------
 executeSelectOperation :: [DataFrame] -> ParsedStatement -> Either ErrorMessage DataFrame
-executeSelectOperation dataFrames stmt =
+executeSelectOperation dataFrames stmt = 
     case stmt of
         Select columnNames tableNames maybeConditions -> do
-            -- Join
-            let conditions = fromMaybe [] maybeConditions
+            let allColumns = concatMap (\(DataFrame cols _) -> cols) dataFrames
+            let (joinConditions, filterConditions) = splitConditions allColumns $ fromMaybe [] maybeConditions
+
+            -- join
             let joinedDataFrame = if length dataFrames > 1 
-                                  then joinDataFrames dataFrames conditions
+                                  then joinDataFrames dataFrames joinConditions
                                   else head dataFrames
-            -- Apply conditions
-            filteredDataFrame <- applyConditions joinedDataFrame conditions
-            -- Select columns
+            -- apply conditions
+            filteredDataFrame <- applyConditions joinedDataFrame filterConditions
+
+            -- select columns
             projectColumns filteredDataFrame columnNames
         _ -> Left "Invalid statement type for selection operation"
+    where
+        splitConditions :: [Column] -> [Condition] -> ([Condition], [Condition])
+        splitConditions allCols conditions = partition (isJoinCondition allCols) conditions
+        
+        isJoinCondition :: [Column] -> Condition -> Bool
+        isJoinCondition allCols (Equals colName1 colName2) = isColumnName allCols colName1 && isColumnName allCols colName2
+        isJoinCondition _ _ = False
+                
+        isColumnName :: [Column] -> String -> Bool
+        isColumnName allCols name = any (\(Column colName _) -> colName == name) allCols
+
+
 
 ------------------- Join frames -------------------
 joinDataFrames :: [DataFrame] -> [Condition] -> DataFrame
@@ -460,8 +475,10 @@ conditionSatisfied row columns condition = case condition of
 ------------------- Project cols -------------------
 projectColumns :: DataFrame -> [ValueExpr] -> Either ErrorMessage DataFrame
 projectColumns (DataFrame allCols allRows) valueExprs =
-    if any isAggregate valueExprs && all isAggregate valueExprs
-    then calculateAggregate allCols allRows valueExprs
+    if all isAggregate valueExprs
+        then calculateAggregate allCols allRows valueExprs
+    else if any isAggregate valueExprs 
+        then Left "Column names alongside aggregate functions not allowed"
     else let colIndices = concatMap (getColumnIndicesByName allCols) valueExprs
         in if not (null colIndices)
             then Right $ DataFrame (map (allCols !!) colIndices) (map (projectRow colIndices) allRows)
