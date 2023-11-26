@@ -9,7 +9,8 @@ module Lib3
     writeDataFrameToYAML,
     executeSelectOperation,
     executeUpdateOperation,
-    executeInsertOperation
+    executeInsertOperation,
+    runExecuteIOTest
   )
 where
 
@@ -22,14 +23,16 @@ import Control.Exception (try, IOException)
 import qualified Data.Yaml as Y
 import Data.Text (pack, unpack) 
 import Data.Aeson.Key (fromString)
+import Lib1 qualified
 import qualified Data.ByteString.Char8 as BS
-import Data.List (intercalate, findIndices, findIndex)
+import Data.List (intercalate, findIndices, findIndex, partition)
 import Data.Char (toLower)
 import Lib2 (parseStatement, ParsedStatement(..), Condition(..), ValueExpr(..))
-
+import InMemoryTables qualified
 import Data.Maybe (fromMaybe, isNothing, fromJust)
 import Text.Read (readMaybe)
 import Control.Monad (foldM)
+import Data.Time ( UTCTime, getCurrentTime, formatTime, defaultTimeLocale )
 
 instance FromJSON Table where
   parseJSON = withObject "Table" $ \v ->
@@ -179,7 +182,7 @@ executeSql sql = case parseStatement sql of
 
     Left errorMsg -> return $ Left errorMsg
 
-
+-------------------------executeSqlTest--------------------------
 
 -------------------------parseContent--------------------------
 
@@ -334,19 +337,34 @@ allM f = foldM (\prev nxt -> if prev then f nxt else return False) True
 ------------------- Execute SELECT -------------------
 ------------------------------------------------------
 executeSelectOperation :: [DataFrame] -> ParsedStatement -> Either ErrorMessage DataFrame
-executeSelectOperation dataFrames stmt =
+executeSelectOperation dataFrames stmt = 
     case stmt of
         Select columnNames tableNames maybeConditions -> do
-            -- Join
-            let conditions = fromMaybe [] maybeConditions
+            let allColumns = concatMap (\(DataFrame cols _) -> cols) dataFrames
+            let (joinConditions, filterConditions) = splitConditions allColumns $ fromMaybe [] maybeConditions
+
+            -- join
             let joinedDataFrame = if length dataFrames > 1 
-                                  then joinDataFrames dataFrames conditions
+                                  then joinDataFrames dataFrames joinConditions
                                   else head dataFrames
-            -- Apply conditions
-            filteredDataFrame <- applyConditions joinedDataFrame conditions
-            -- Select columns
+            -- apply conditions
+            filteredDataFrame <- applyConditions joinedDataFrame filterConditions
+
+            -- select columns
             projectColumns filteredDataFrame columnNames
         _ -> Left "Invalid statement type for selection operation"
+    where
+        splitConditions :: [Column] -> [Condition] -> ([Condition], [Condition])
+        splitConditions allCols conditions = partition (isJoinCondition allCols) conditions
+        
+        isJoinCondition :: [Column] -> Condition -> Bool
+        isJoinCondition allCols (Equals colName1 colName2) = isColumnName allCols colName1 && isColumnName allCols colName2
+        isJoinCondition _ _ = False
+                
+        isColumnName :: [Column] -> String -> Bool
+        isColumnName allCols name = any (\(Column colName _) -> colName == name) allCols
+
+
 
 ------------------- Join frames -------------------
 joinDataFrames :: [DataFrame] -> [Condition] -> DataFrame
@@ -457,8 +475,10 @@ conditionSatisfied row columns condition = case condition of
 ------------------- Project cols -------------------
 projectColumns :: DataFrame -> [ValueExpr] -> Either ErrorMessage DataFrame
 projectColumns (DataFrame allCols allRows) valueExprs =
-    if any isAggregate valueExprs && all isAggregate valueExprs
-    then calculateAggregate allCols allRows valueExprs
+    if all isAggregate valueExprs
+        then calculateAggregate allCols allRows valueExprs
+    else if any isAggregate valueExprs 
+        then Left "Column names alongside aggregate functions not allowed"
     else let colIndices = concatMap (getColumnIndicesByName allCols) valueExprs
         in if not (null colIndices)
             then Right $ DataFrame (map (allCols !!) colIndices) (map (projectRow colIndices) allRows)
@@ -517,3 +537,56 @@ getColumnIndicesByName allCols (Name colName) =
 
 projectRow :: [Int] -> [Value] -> [Value]
 projectRow colIndices row = map (row !!) colIndices
+
+
+
+
+-------------Test Interpreter----------------
+
+
+runExecuteIOTest :: Execution r -> IO r
+runExecuteIOTest (Pure r) = return r
+runExecuteIOTest (Free step) = do
+    next <- runStep step
+    runExecuteIOTest next
+    where
+        runStep :: ExecutionAlgebra a -> IO a
+        runStep (ExecuteSelect dfs stmt next) = do
+          let processedData = executeSelectOperation dfs stmt
+          return $ next processedData
+
+        runStep (ExecuteUpdate df stmt next) = do
+          let processedData = executeUpdateOperation df stmt
+          return $ next processedData
+
+        runStep (ExecuteInsert df stmt next) = do
+          let processedData = executeInsertOperation df stmt
+          return $ next processedData
+
+        runStep (GetTime next) = do
+          -- Return frozen time for testing
+          let testTime = read "2000-01-01 12:00:00 UTC" :: UTCTime
+          return $ next testTime
+
+        runStep (DisplayTime time next) = do
+          let timestr = formatTime defaultTimeLocale "%F %T" time
+          let df = DataFrame [Column "current_time" StringType] [[StringValue timestr]]
+          return $ next df
+
+        runStep (LoadFile tableName next) = return (next tableName)
+            -- Return the name for testing
+
+        runStep (ParseStringOfFile tableName next) = do
+          -- Return data from InMemoryTables
+          let maybeDataFrame = lookup tableName InMemoryTables.database
+          case maybeDataFrame of
+            Just df -> return (next (Right df))
+            Nothing -> return (next (Left "Table not found in InMemoryTables"))
+
+        runStep (SerializeDataFrameToYAML _ df next) = do
+          -- Skip for testing
+          return (next df)
+
+        runStep (CheckDataFrame df next) = do
+          let validationResult = Lib1.validateDataFrame df
+          return (next validationResult)

@@ -2,6 +2,7 @@ module InMemoryTables
   ( tableEmployees,
     tableInvalid1,
     tableInvalid2,
+    tableTasks,
     tableLongStrings,
     tableWithNulls,
     database,
@@ -52,6 +53,19 @@ tableInvalid2 =
       ]
   )
 
+tableTasks :: (TableName, DataFrame)
+tableTasks =
+  ( "tasks",
+    DataFrame
+      [Column "task_id" IntegerType, Column "description" StringType, Column "is_completed" BoolType]
+      [  [IntegerValue 601, StringValue "Setup project environment", BoolValue False],
+         [IntegerValue 602, StringValue "Complete initial documentation", BoolValue True],
+         [IntegerValue 603, StringValue "Implement core features", BoolValue False],
+         [IntegerValue 604, StringValue "Conduct code review", BoolValue False],
+         [IntegerValue 605, StringValue "Prepare for deployment", BoolValue True]
+      ]
+  )
+
 longString :: Value
 longString =
   StringValue $
@@ -90,4 +104,4 @@ tableWithNulls =
   )
 
 database :: [(TableName, DataFrame)]
-database = [tableEmployees, tableEmployees2, tableInvalid1, tableInvalid2, tableLongStrings, tableWithNulls]
+database = [tableEmployees, tableEmployees2, tableInvalid1, tableInvalid2, tableTasks, tableLongStrings, tableWithNulls]
