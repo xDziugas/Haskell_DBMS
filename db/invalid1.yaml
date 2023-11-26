@@ -1,5 +1,5 @@
 columns:
 - name: id
-  dataType: Int
+  dataType: String
 rows:
 - [1]

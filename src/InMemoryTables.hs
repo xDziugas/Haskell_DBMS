@@ -95,11 +95,12 @@ tableTestAggregateJoin =
   ( "test_aggregate_join",
     DataFrame
       [Column "id" IntegerType, Column "related_id" IntegerType, Column "data" StringType]
-      [ [IntegerValue 1, IntegerValue 10, StringValue "Data1"],
-        [IntegerValue 2, IntegerValue 10, StringValue "Data2"],
-        [IntegerValue 3, IntegerValue 20, StringValue "Data3"]
+      [ [IntegerValue 20, IntegerValue 1, StringValue "Data1"],
+        [IntegerValue 5, IntegerValue 2, StringValue "Data2"],
+        [IntegerValue 50, IntegerValue 3, StringValue "Data3"]
       ]
   )
+
 
 database :: [(TableName, DataFrame)]
 database = [tableEmployees, tableEmployees2, tableInvalid1, tableInvalid2, tableLongStrings, tableWithNulls, tableTestAggregateJoin]

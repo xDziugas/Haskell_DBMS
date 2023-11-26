@@ -29,9 +29,9 @@ main = hspec $ do
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
     it "correctly executes avg aggregate function on a column from a table" $ do
-      let query = "select avg(id) from employees;"
+      let query = "select avg(id) from test_aggregate_join;"
       let expected = Right (DataFrame [Column "aggregate" IntegerType] 
-                                      [[IntegerValue 1]])
+                                      [[IntegerValue 25]])
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
     it "correctly chooses all from table" $ do
@@ -138,9 +138,9 @@ main = hspec $ do
       let expected = Left "Second operand is not an integer: uga"
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
-    it "handles aggregate functions combined with where clause" $ do
-      let query = "select min(flag) from flags where value = False;"
-      let expected = Right (DataFrame [Column "aggregate" IntegerType] [[StringValue "b"]])
+    it "returns an error when trying to apply aggergate function to not an int" $ do
+      let query = "select min(flag) from flags;"
+      let expected = Left "Data types are incorrect"
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
     it "doesn't let multiple columns if aggregate function is present" $ do
@@ -166,6 +166,21 @@ main = hspec $ do
     it "returns an error for non-existent column in select" $ do
       let query = "select age from employees;"
       let expected = Left "One or more columns not found"
+      result <- runExecuteIOTest $ Lib3.executeSql query
+      result `shouldBe` expected
+    it "returns an error if a given tables column count doesn't match rows count" $ do
+      let query = "select * from invalid2;"
+      let expected = Left "Row lengths do not match the number of columns"
+      result <- runExecuteIOTest $ Lib3.executeSql query
+      result `shouldBe` expected
+    it "returns an error if a given tables column count doesn't match rows count" $ do
+      let query = "select * from invalid2;"
+      let expected = Left "Row lengths do not match the number of columns"
+      result <- runExecuteIOTest $ Lib3.executeSql query
+      result `shouldBe` expected
+    it "returns an error if a given tables column data type doesn't match rows data type" $ do
+      let query = "select * from invalid1;"
+      let expected = Left "Data types are incorrect"
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
   describe "SELECT JOIN operations" $ do
@@ -232,7 +247,18 @@ main = hspec $ do
     it "correctly applies min aggregate function in a join operation" $ do
       let query = "select min(id) from test_aggregate_join, employees2 where related_id = idd;"
       let expected = Right (DataFrame [Column "aggregate" IntegerType] 
-                                      [[IntegerValue 1]])
+                                      [[IntegerValue 5]])
+      result <- runExecuteIOTest $ Lib3.executeSql query
+      result `shouldBe` expected
+    it "correctly applies avg aggregate function in a join operation" $ do
+      let query = "select avg(id) from test_aggregate_join, employees2 where related_id = idd;"
+      let expected = Right (DataFrame [Column "aggregate" IntegerType] 
+                                      [[IntegerValue 12]])
+      result <- runExecuteIOTest $ Lib3.executeSql query
+      result `shouldBe` expected
+    it "returns an error if it found one or more tables inside the join which dont exist" $ do
+      let query = "select * from employees, nonExistent;"
+      let expected = Left "Table not found in InMemoryTables"
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
   describe "INSERT Operations" $ do
@@ -278,6 +304,7 @@ main = hspec $ do
       let expected = Left "Type mismatch for column: id"
       result <- runExecuteIOTest $ executeSql query
       result `shouldBe` expected
+      --NEED TO CHECK WITH DATAFRAME
     it "returns an error for non-existent column names" $ do
       let query = "INSERT INTO employees (id, col1) VALUES (10, Value);"
       let expected = Left "One or more specified columns do not exist in the table."
