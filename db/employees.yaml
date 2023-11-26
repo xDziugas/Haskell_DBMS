@@ -8,3 +8,6 @@ columns:
 rows:
 - [101, Vi, Po]
 - [102, Ed, Dl]
+- [103, ig, gi]
+- [103, ig, gi]
+- [103, ig, null]
