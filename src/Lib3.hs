@@ -70,6 +70,7 @@ type Execution = Free ExecutionAlgebra
 data ExecutionAlgebra next
   = LoadFile TableName (FileContent -> next)  
   | GetTime (UTCTime -> next)
+  | DisplayTime UTCTime (DataFrame -> next)
   | ParseStringOfFile FileContent ((Either ErrorMessage DataFrame) -> next)
   | SerializeDataFrameToYAML TableName DataFrame (DataFrame -> next)
   | CheckDataFrame DataFrame ((Either ErrorMessage DataFrame) -> next)
@@ -85,6 +86,9 @@ loadFile name = liftF $ LoadFile name id
 
 getTime :: Execution UTCTime
 getTime = liftF $ GetTime id
+
+displayTime :: UTCTime -> Execution DataFrame
+displayTime tm = liftF $ DisplayTime tm id
 
 serializeDataFrameToYAML :: TableName -> DataFrame -> Execution DataFrame
 serializeDataFrameToYAML tableName df = liftF $ SerializeDataFrameToYAML tableName df id
@@ -121,7 +125,7 @@ loadAndParseMultipleTables tables = chain tables []
                       Right df -> chain ts (dfs ++ [df])
                       Left errMsg -> return $ Left errMsg
 
-
+executeSql :: String -> Execution (Either ErrorMessage DataFrame)
 executeSql sql = case parseStatement sql of
     Right stmt@(Select{qeFrom = tables}) -> 
         loadAndParseMultipleTables tables >>= \eitherDfs ->
@@ -162,6 +166,11 @@ executeSql sql = case parseStatement sql of
         case eitherDf of
             Right df -> executeDelete df stmt
             Left errMsg -> return $ Left errMsg
+
+    Right stmt@(Now) ->
+        getTime >>= \time -> do
+          df <- displayTime time
+          return $ Right df
 
     Left errorMsg -> return $ Left errorMsg
 

@@ -4,7 +4,7 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Free (Free (..))
 
 import Data.Functor((<&>))
-import Data.Time ( UTCTime, getCurrentTime )
+import Data.Time ( UTCTime, getCurrentTime, formatTime, defaultTimeLocale )
 import Data.List qualified as L
 import Lib1 qualified
 import Lib2 qualified
@@ -93,6 +93,11 @@ runExecuteIO (Free step) = do
           return $ next processedData
 
         runStep (Lib3.GetTime next) = getCurrentTime >>= return . next
+
+        runStep (Lib3.DisplayTime time next) = do
+          let timestr = formatTime defaultTimeLocale "%F %T" time
+          let df = DataFrame [Column "current_time" StringType] [[StringValue timestr]]
+          return $ next df
 
         runStep (Lib3.LoadFile tableName next) = do
           let relativePath = Lib3.getPath tableName
