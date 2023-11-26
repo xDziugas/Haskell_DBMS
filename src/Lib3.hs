@@ -142,7 +142,15 @@ executeSql sql = case parseStatement sql of
     Right stmt@(Select{qeFrom = tables}) -> 
         loadAndParseMultipleTables tables >>= \eitherDfs ->
         case eitherDfs of
-            Right dfs -> executeSelect dfs stmt
+            Right dfs -> 
+                executeSelect dfs stmt >>= \selectResult ->
+                case selectResult of
+                    Right selectedDf ->
+                        checkDataFrame selectedDf >>= \validationResult ->
+                        case validationResult of
+                            Right validatedDf -> return $ Right validatedDf
+                            Left errMsg -> return $ Left errMsg
+                    Left errMsg -> return $ Left errMsg
             Left errMsg -> return $ Left errMsg
 
     Right stmt@(Insert tableName _ _) ->
@@ -156,8 +164,12 @@ executeSql sql = case parseStatement sql of
                         executeInsert validatedDf stmt >>= \insertResult ->
                         case insertResult of
                             Right updatedDataFrame -> 
-                                serializeDataFrameToYAML tableName updatedDataFrame >>= \serializedResult ->
-                                return $ Right serializedResult
+                                checkDataFrame updatedDataFrame >>= \validationResult ->
+                                case validationResult of
+                                    Right validatedDf ->
+                                        serializeDataFrameToYAML tableName validatedDf >>= \serializedResult ->
+                                        return $ Right serializedResult
+                                    Left errMsg -> return $ Left errMsg
                             Left errMsg -> return $ Left errMsg
                     Left errMsg -> return $ Left errMsg
             Left errMsg -> return $ Left errMsg
@@ -173,8 +185,12 @@ executeSql sql = case parseStatement sql of
                         executeUpdate validatedDf stmt >>= \updateResult ->
                         case updateResult of
                             Right updatedDf -> 
-                                serializeDataFrameToYAML tableName updatedDf >>= \serializedResult ->
-                                return $ Right serializedResult
+                                checkDataFrame updatedDf >>= \validationResult ->
+                                case validationResult of
+                                    Right validatedDf ->
+                                        serializeDataFrameToYAML tableName validatedDf >>= \serializedResult ->
+                                        return $ Right serializedResult
+                                    Left errMsg -> return $ Left errMsg
                             Left errMsg -> return $ Left errMsg
                     Left errMsg -> return $ Left errMsg
             Left errMsg -> return $ Left errMsg
@@ -188,7 +204,15 @@ executeSql sql = case parseStatement sql of
                 case validationResult of
                     Right validatedDf -> 
                         executeDelete validatedDf stmt >>= \deleteResult ->
-                        return $ deleteResult
+                        case deleteResult of
+                            Right deletedDf ->
+                                checkDataFrame deletedDf >>= \validationResult ->
+                                case validationResult of
+                                    Right validatedDf ->
+                                        serializeDataFrameToYAML tableName validatedDf >>= \serializedResult ->
+                                        return $ Right serializedResult
+                                    Left errMsg -> return $ Left errMsg
+                            Left errMsg -> return $ Left errMsg
                     Left errMsg -> return $ Left errMsg
             Left errMsg -> return $ Left errMsg
 
