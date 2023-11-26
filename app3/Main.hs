@@ -87,6 +87,10 @@ runExecuteIOTest (Free step) = do
           let processedData = Lib3.executeInsertOperation df stmt
           return $ next processedData
 
+        runStep (Lib3.ExecuteDelete df stmt next) = do
+            let processedData = Lib3.executeDeleteOperation df stmt
+            return $ next processedData
+
         runStep (Lib3.GetTime next) = do
           -- Return frozen time for testing
           let testTime = read "2000-01-01 12:00:00 UTC" :: UTCTime
@@ -135,6 +139,10 @@ runExecuteIO (Free step) = do
 
         runStep (Lib3.ExecuteInsert df stmt next) = do
           let processedData = Lib3.executeInsertOperation df stmt
+          return $ next processedData
+
+        runStep (Lib3.ExecuteDelete df stmt next) = do
+          let processedData = Lib3.executeDeleteOperation df stmt
           return $ next processedData
 
         runStep (Lib3.GetTime next) = getCurrentTime >>= return . next
