@@ -267,11 +267,21 @@ getPath tableName = "db/" ++ tableName ++ ".yaml"
 executeInsertOperation :: DataFrame -> ParsedStatement -> Either ErrorMessage DataFrame
 executeInsertOperation (DataFrame cols rows) (Insert tableName colNames values) =
     if length colNames == length values then
-        let newRow = map parseValue values
+        let newRow = createRowWithDefaults cols colNames values
         in Right $ DataFrame cols (rows ++ [newRow])
     else
         Left "Column names and values count mismatch"
 executeInsertOperation _ _ = Left "Invalid insert operation"
+
+createRowWithDefaults :: [Column] -> [String] -> [String] -> Row
+createRowWithDefaults allCols insertCols values = 
+    let colValuePairs = zip insertCols (map parseValue values)
+    in map (findOrDefault colValuePairs) allCols
+
+findOrDefault :: [(String, Value)] -> Column -> Value
+findOrDefault colValuePairs (Column colName _) = 
+    fromMaybe NullValue (lookup colName colValuePairs)
+
 
 ------------------- Execute UPDATE -------------------
 ------------------------------------------------------
@@ -504,7 +514,9 @@ applyAvg values =
 
 getColumnIndicesByName :: [Column] -> ValueExpr -> [Int]
 getColumnIndicesByName allCols (Name colName) =
-    findIndices (\(Column name _) -> name == colName) allCols
+    if colName == "*" 
+    then [0 .. length allCols - 1]
+    else findIndices (\(Column name _) -> name == colName) allCols
 
 projectRow :: [Int] -> [Value] -> [Value]
 projectRow colIndices row = map (row !!) colIndices
