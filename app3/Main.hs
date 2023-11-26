@@ -9,6 +9,7 @@ import Data.List qualified as L
 import Lib1 qualified
 import Lib2 qualified
 import Lib3 qualified
+import Control.Exception (IOException, try)
 import InMemoryTables qualified
 import DataFrame (DataFrame(..), Column (..), ColumnType (..), Value (..), Row, DataFrame (..))
 import Lib2 (parseStatement, ParsedStatement(..), Condition(..), ValueExpr(..))
@@ -68,59 +69,6 @@ main :: IO ()
 main =
   evalRepl (const $ pure ">>> ") cmd [] Nothing Nothing (Word completer) ini final
 
-runExecuteIOTest :: Lib3.Execution r -> IO r
-runExecuteIOTest (Pure r) = return r
-runExecuteIOTest (Free step) = do
-    next <- runStep step
-    runExecuteIOTest next
-    where
-        runStep :: Lib3.ExecutionAlgebra a -> IO a
-        runStep (Lib3.ExecuteSelect dfs stmt next) = do
-          let processedData = Lib3.executeSelectOperation dfs stmt
-          return $ next processedData
-
-        runStep (Lib3.ExecuteUpdate df stmt next) = do
-          let processedData = Lib3.executeUpdateOperation df stmt
-          return $ next processedData
-
-        runStep (Lib3.ExecuteInsert df stmt next) = do
-          let processedData = Lib3.executeInsertOperation df stmt
-          return $ next processedData
-
-        runStep (Lib3.ExecuteDelete df stmt next) = do
-            let processedData = Lib3.executeDeleteOperation df stmt
-            return $ next processedData
-
-        runStep (Lib3.GetTime next) = do
-          -- Return frozen time for testing
-          let testTime = read "2000-01-01 12:00:00 UTC" :: UTCTime
-          return $ next testTime
-
-        runStep (Lib3.DisplayTime time next) = do
-          let timestr = formatTime defaultTimeLocale "%F %T" time
-          let df = DataFrame [Column "current_time" StringType] [[StringValue timestr]]
-          return $ next df
-
-        runStep (Lib3.LoadFile tableName next) = return (next tableName)
-            -- Return the name for testing
-
-        runStep (Lib3.ParseStringOfFile tableName next) = do
-          -- Return data from InMemoryTables
-          let maybeDataFrame = lookup tableName InMemoryTables.database
-          case maybeDataFrame of
-            Just df -> return (next (Right df))
-            Nothing -> return (next (Left "Table not found in InMemoryTables"))
-
-        runStep (Lib3.SerializeDataFrameToYAML _ df next) = do
-          -- Skip for testing
-          return (next df)
-
-        runStep (Lib3.CheckDataFrame df next) = do
-          let validationResult = Lib1.validateDataFrame df
-          return (next validationResult)
-
-
-
 
 runExecuteIO :: Lib3.Execution r -> IO r
 runExecuteIO (Pure r) = return r
@@ -154,8 +102,10 @@ runExecuteIO (Free step) = do
 
         runStep (Lib3.LoadFile tableName next) = do
           let relativePath = Lib3.getPath tableName
-          fileContent <- readFile relativePath
-          return (next fileContent)
+          fileContentOrError <- try (readFile relativePath) :: IO (Either IOException FileContent)
+          case fileContentOrError of
+              Right fileContent -> return $ next (Right fileContent)
+              Left ioError -> return $ next (Left $ "no file exists with that name")
 
         runStep (Lib3.ParseStringOfFile fileContent next) = do
           let parseContent = Lib3.parseContentToDataFrame fileContent
