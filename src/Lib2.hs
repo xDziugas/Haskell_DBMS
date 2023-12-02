@@ -88,6 +88,7 @@ data ValueExpr
   = Name String
   | AggMin String
   | AggAvg String
+  | Now
   deriving (Eq, Show)
 
 data ParsedStatement
@@ -101,7 +102,6 @@ data ParsedStatement
   | Update TableName [Condition] (Maybe [Condition]) -- TableName, Set Conditions, Optional Where Conditions
   | ShowTables
   | ShowTable TableName
-  | Now
   deriving (Eq, Show)
 
 -----------------parsers----------------------
@@ -158,10 +158,10 @@ conditionP = do
 -- Parse a condition operator to Condition data type
 conditionOperatorP :: Parser (String -> String -> Condition)
 conditionOperatorP = (Equals           <$ stringP "=")
-                 <|> (LessThan         <$ stringP "<")
-                 <|> (GreaterThan      <$ stringP ">")
                  <|> (LessEqualThan    <$ stringP "<=")
                  <|> (GreaterEqualThan <$ stringP ">=")
+                 <|> (LessThan         <$ stringP "<")
+                 <|> (GreaterThan      <$ stringP ">")
 
 -- Parse conditions until there is no keyword "AND"
 conditionsP :: Parser [Condition]
@@ -183,7 +183,7 @@ aggAvgP = AggAvg <$> (stringP "AVG" *> optional spaceP *> charP '(' *> optional 
 
 -- Parses any value expression (data type ValueExpr contains SELECTED columns)
 valueExprP :: Parser ValueExpr
-valueExprP = aggMinP <|> aggAvgP <|> nameP
+valueExprP = aggMinP <|> aggAvgP <|> nowP <|> nameP
 
 -- Parses a list of values while condition is met (i.e. until a comma is found) 
 sepBy :: Parser a -> Parser sep -> Parser [a]
@@ -203,7 +203,7 @@ satisfy predicate = Parser $ \input ->
 
 ----------------------3rd task parsers-----------------------
 
-nowP :: Parser ParsedStatement
+nowP :: Parser ValueExpr
 nowP = Now <$ keywordP "NOW()"
 
 -- Parser for INSERT statement
@@ -278,7 +278,7 @@ showTableP = ShowTable <$> (keywordP "SHOW TABLE" *> identifierP)
 
 -- Try to parse any statements
 parsedStatementP :: Parser ParsedStatement
-parsedStatementP = nowP <|> selectP <|> showTablesP <|> showTableP <|> insertP <|> deleteP <|> updateP
+parsedStatementP = selectP <|> showTablesP <|> showTableP <|> insertP <|> deleteP <|> updateP
 
 -- Parse statement, start
 parseStatement :: String -> Either ErrorMessage ParsedStatement
