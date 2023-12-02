@@ -10,9 +10,11 @@
 {-# HLINT ignore "Use lambda-case" #-}
 
 module Lib2
-  ( parseStatement,
-    ParsedStatement (..),
-    executeStatement,
+  ( 
+    parseStatement,
+    ParsedStatement(..), ValueExpr(..), Condition(..),
+    ValueExpr,
+    Condition,
   )
 where
 
@@ -139,7 +141,8 @@ keywordP w = tokenP $ stringP w
 
 -- Parse identifier (alphanumeric name)
 identifierP :: Parser String
-identifierP = tokenP $ some $ satisfy (\c -> isAlphaNum c || c == '_')
+identifierP = tokenP $ some $ satisfy (\c -> isAlphaNum c || c == '_' || c == '*')
+
 
 -- Parses string literal (i.e. "multiple words string"), neveikia, reik uztestuot
 stringLiteralP :: Parser String

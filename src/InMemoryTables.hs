@@ -23,6 +23,16 @@ tableEmployees =
       ]
   )
 
+tableEmployees2 :: (TableName, DataFrame)
+tableEmployees2 =
+  ( "employees2",
+    DataFrame
+      [Column "idd" IntegerType, Column "namee" StringType, Column "surnamee" StringType]
+      [ [IntegerValue 1, StringValue "Jo", StringValue "Ja"],
+        [IntegerValue 2, StringValue "Ka", StringValue "Ma"]
+      ]
+  )
+
 tableInvalid1 :: (TableName, DataFrame)
 tableInvalid1 =
   ( "invalid1",
@@ -79,5 +89,32 @@ tableWithNulls =
       ]
   )
 
+
+tableTestAggregateJoin :: (TableName, DataFrame)
+tableTestAggregateJoin =
+  ( "test_aggregate_join",
+    DataFrame
+      [Column "id" IntegerType, Column "related_id" IntegerType, Column "data" StringType]
+      [ [IntegerValue 20, IntegerValue 1, StringValue "Data1"],
+        [IntegerValue 5, IntegerValue 2, StringValue "Data2"],
+        [IntegerValue 50, IntegerValue 3, StringValue "Data3"]
+      ]
+  )
+
+tableTasks :: (TableName, DataFrame)
+tableTasks =
+  ( "tasks",
+    DataFrame
+      [Column "task_id" IntegerType, Column "description" StringType, Column "is_completed" BoolType]
+      [  [IntegerValue 601, StringValue "Setup project environment", BoolValue False],
+         [IntegerValue 602, StringValue "Complete initial documentation", BoolValue True],
+         [IntegerValue 603, StringValue "Implement core features", BoolValue False],
+         [IntegerValue 604, StringValue "Conduct code review", BoolValue False],
+         [IntegerValue 605, StringValue "Prepare for deployment", BoolValue True]
+      ]
+  )
+
+
 database :: [(TableName, DataFrame)]
-database = [tableEmployees, tableInvalid1, tableInvalid2, tableLongStrings, tableWithNulls]
+database = [tableEmployees, tableEmployees2, tableTasks, tableInvalid1, tableInvalid2, tableLongStrings, tableWithNulls, tableTestAggregateJoin]
+

@@ -51,12 +51,12 @@ parseSelectAllStatement statement =
 
 -- 3) implement the function which validates tables: checks if
 -- columns match value types, if rows sizes match columns,..
-validateDataFrame :: DataFrame -> Either ErrorMessage ()
-validateDataFrame (DataFrame columns rows) =
+validateDataFrame :: DataFrame -> Either ErrorMessage DataFrame
+validateDataFrame df@(DataFrame columns rows) =
   if all (\row -> length row == length columns) rows
     then
       if all (\(columnIndex, col) -> all (\row -> checkColumnType col (row !! columnIndex)) rows) (zip [0 ..] columns)
-        then Right ()
+        then Right df
         else Left "Data types are incorrect"
     else Left "Row lengths do not match the number of columns"
 
