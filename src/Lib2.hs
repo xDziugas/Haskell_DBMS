@@ -19,7 +19,7 @@ module Lib2
 where
 
 import Control.Applicative ( Alternative(..), optional )
-import Data.Char (isAlphaNum, toLower)
+import Data.Char (isAlphaNum, toLower, isSymbol)
 import DataFrame (DataFrame, Column)
 import InMemoryTables (TableName)
 import Control.Monad (void)
@@ -31,6 +31,9 @@ type ErrorMessage = String
 newtype Parser a = Parser {
     runParser :: String -> Either ErrorMessage (String, a)
 }
+
+executeStatement :: ParsedStatement -> Either ErrorMessage DataFrame
+executeStatement _ = Left "Not implemented"
 
 instance Functor Parser where
   fmap :: (a -> b) -> Parser a -> Parser b
@@ -87,6 +90,7 @@ data ValueExpr
   = Name String
   | AggMin String
   | AggAvg String
+  | Now
   deriving (Eq, Show)
 
 data ParsedStatement
@@ -100,7 +104,6 @@ data ParsedStatement
   | Update TableName [Condition] (Maybe [Condition]) -- TableName, Set Conditions, Optional Where Conditions
   | ShowTables
   | ShowTable TableName
-  | Now
   deriving (Eq, Show)
 
 -----------------parsers----------------------
@@ -139,6 +142,7 @@ keywordP w = tokenP $ stringP w
 -- Parse identifier (alphanumeric name)
 identifierP :: Parser String
 identifierP = tokenP $ some $ satisfy (\c -> isAlphaNum c || c == '_' || c == '*')
+
 
 -- Parses string literal (i.e. "multiple words string"), neveikia, reik uztestuot
 stringLiteralP :: Parser String
@@ -182,7 +186,7 @@ aggAvgP = AggAvg <$> (stringP "AVG" *> optional spaceP *> charP '(' *> optional 
 
 -- Parses any value expression (data type ValueExpr contains SELECTED columns)
 valueExprP :: Parser ValueExpr
-valueExprP = aggMinP <|> aggAvgP <|> nameP
+valueExprP = aggMinP <|> aggAvgP <|> nowP <|> nameP
 
 -- Parses a list of values while condition is met (i.e. until a comma is found) 
 sepBy :: Parser a -> Parser sep -> Parser [a]
@@ -202,7 +206,7 @@ satisfy predicate = Parser $ \input ->
 
 ----------------------3rd task parsers-----------------------
 
-nowP :: Parser ParsedStatement
+nowP :: Parser ValueExpr
 nowP = Now <$ keywordP "NOW()"
 
 -- Parser for INSERT statement
@@ -277,7 +281,7 @@ showTableP = ShowTable <$> (keywordP "SHOW TABLE" *> identifierP)
 
 -- Try to parse any statements
 parsedStatementP :: Parser ParsedStatement
-parsedStatementP = nowP <|> selectP <|> showTablesP <|> showTableP <|> insertP <|> deleteP <|> updateP
+parsedStatementP = selectP <|> showTablesP <|> showTableP <|> insertP <|> deleteP <|> updateP
 
 -- Parse statement, start
 parseStatement :: String -> Either ErrorMessage ParsedStatement
