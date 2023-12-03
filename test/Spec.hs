@@ -316,18 +316,20 @@ main = hspec $ do
       result `shouldBe` expected
     describe "NOW Operations" $ do
       it "correctly displays the time" $ do
-        let query = "now();"
+        let query = "select now() from employees;"
         let expected = Right (DataFrame [Column "current_time" StringType] [[StringValue "2000-01-01 12:00:00"]])
         result <- runExecuteIOTest $ Lib3.executeSql query
         result `shouldBe` expected
       it "correctly displays the time using case-sensitive letters" $ do
-        let query = "NoW();"
+        let query = "select nOw() from employees;"
         let expected = Right (DataFrame [Column "current_time" StringType] [[StringValue "2000-01-01 12:00:00"]])
         result <- runExecuteIOTest $ Lib3.executeSql query
         result `shouldBe` expected
-      it "correctly handles whitespace" $ do
-        let query = "now();  "
-        let expected = Right (DataFrame [Column "current_time" StringType] [[StringValue "2000-01-01 12:00:00"]])
+      it "correctly handles the time with other columns" $ do
+        let query = "select now(), id from employees;"
+        let expected = Right (DataFrame [Column "id" IntegerType, Column "current_time" StringType] 
+                                        [[IntegerValue 1, StringValue "2000-01-01 12:00:00 UTC"], 
+                                         [IntegerValue 2, StringValue "2000-01-01 12:00:00 UTC"]])
         result <- runExecuteIOTest $ Lib3.executeSql query
         result `shouldBe` expected
   describe "UPDATE operations" $ do

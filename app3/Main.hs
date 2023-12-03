@@ -76,48 +76,37 @@ runExecuteIO (Free step) = do
     next <- runStep step
     runExecuteIO next
     where
-        runStep :: Lib3.ExecutionAlgebra a -> IO a
-        runStep (Lib3.ExecuteSelect dfs stmt next) = do
-          let processedData = Lib3.executeSelectOperation dfs stmt
-          return $ next processedData
+      runStep :: Lib3.ExecutionAlgebra a -> IO a
+      runStep (Lib3.ExecuteStatement currentTime dfs stmt next) = do
+        let processedData = case stmt of
+                              Select{} -> case Lib3.executeSelectOperation dfs stmt currentTime of
+                                Right df -> Lib1.validateDataFrame df
+                                Left err -> Left err
+                              Insert{} -> Lib3.executeInsertOperation (head dfs) stmt
+                              Update{} -> Lib3.executeUpdateOperation (head dfs) stmt
+                              Delete{} -> Lib3.executeDeleteOperation (head dfs) stmt
+                              _ -> Left "Unsupported operation in runStep"
+        return $ next processedData
 
-        runStep (Lib3.ExecuteUpdate df stmt next) = do
-          let processedData = Lib3.executeUpdateOperation df stmt
-          return $ next processedData
+      runStep (Lib3.GetTime next) = getCurrentTime >>= return . next
 
-        runStep (Lib3.ExecuteInsert df stmt next) = do
-          let processedData = Lib3.executeInsertOperation df stmt
-          return $ next processedData
+      runStep (Lib3.LoadFile tableName next) = do
+        let relativePath = Lib3.getPath tableName
+        fileContentOrError <- try (readFile relativePath) :: IO (Either IOException FileContent)
+        case fileContentOrError of
+            Right fileContent -> case Lib3.parseContentToDataFrame fileContent of
+              Right parsedDf -> case Lib1.validateDataFrame parsedDf of 
+                  Right validDf -> return $ next (Right validDf)
+                  Left err -> return $ next (Left err) 
+              Left err -> return $ next (Left err) 
+            Left ioError -> return $ next (Left $ "no file exists with that name")
 
-        runStep (Lib3.ExecuteDelete df stmt next) = do
-          let processedData = Lib3.executeDeleteOperation df stmt
-          return $ next processedData
 
-        runStep (Lib3.GetTime next) = getCurrentTime >>= return . next
-
-        runStep (Lib3.DisplayTime time next) = do
-          let timestr = formatTime defaultTimeLocale "%F %T" time
-          let df = DataFrame [Column "current_time" StringType] [[StringValue timestr]]
-          return $ next df
-
-        runStep (Lib3.LoadFile tableName next) = do
-          let relativePath = Lib3.getPath tableName
-          fileContentOrError <- try (readFile relativePath) :: IO (Either IOException FileContent)
-          case fileContentOrError of
-              Right fileContent -> return $ next (Right fileContent)
-              Left ioError -> return $ next (Left $ "no file exists with that name")
-
-        runStep (Lib3.ParseStringOfFile fileContent next) = do
-          let parseContent = Lib3.parseContentToDataFrame fileContent
-          return (next parseContent)
-
-        runStep (Lib3.SerializeDataFrameToYAML tableName df next) = do
-          returnedDf <- Lib3.writeDataFrameToYAML tableName df
-          return (next returnedDf)
-
-        runStep (Lib3.CheckDataFrame df next) = do
-          let validationResult = Lib1.validateDataFrame df
-          return (next validationResult)
-
+      runStep (Lib3.SaveFile tableName df next) = do
+        case Lib1.validateDataFrame df of 
+              Right validDf -> do
+                returnedDf <- Lib3.writeDataFrameToYAML tableName validDf
+                return $ next (Right returnedDf)
+              Left err -> return $ next (Left err)
 
         

@@ -79,164 +79,66 @@ type Execution = Free ExecutionAlgebra
 
 
 data ExecutionAlgebra next
-  = LoadFile TableName ((Either ErrorMessage FileContent) -> next) 
+  = LoadFile TableName ((Either ErrorMessage DataFrame) -> next)
   | GetTime (UTCTime -> next)
-  | DisplayTime UTCTime (DataFrame -> next)
-  | ParseStringOfFile FileContent ((Either ErrorMessage DataFrame) -> next)
-  | SerializeDataFrameToYAML TableName DataFrame (DataFrame -> next)
-  | CheckDataFrame DataFrame ((Either ErrorMessage DataFrame) -> next)
-  | ExecuteSelect [DataFrame] ParsedStatement (Either ErrorMessage DataFrame -> next)
-  | ExecuteInsert DataFrame ParsedStatement (Either ErrorMessage DataFrame -> next)
-  | ExecuteUpdate DataFrame ParsedStatement (Either ErrorMessage DataFrame -> next)
-  | ExecuteDelete DataFrame ParsedStatement (Either ErrorMessage DataFrame -> next)
+  | SaveFile TableName DataFrame ((Either ErrorMessage DataFrame) -> next)
+  | ExecuteStatement UTCTime [DataFrame] ParsedStatement (Either ErrorMessage DataFrame -> next)
   deriving Functor
 
-loadFile :: TableName -> Execution (Either ErrorMessage FileContent)
+loadFile :: TableName -> Execution (Either ErrorMessage DataFrame)
 loadFile name = liftF $ LoadFile name id
 
 getTime :: Execution UTCTime
 getTime = liftF $ GetTime id
 
-displayTime :: UTCTime -> Execution DataFrame
-displayTime tm = liftF $ DisplayTime tm id
+saveFile :: TableName -> DataFrame -> Execution (Either ErrorMessage DataFrame)
+saveFile tableName df = liftF $ SaveFile tableName df id
 
-serializeDataFrameToYAML :: TableName -> DataFrame -> Execution DataFrame
-serializeDataFrameToYAML tableName df = liftF $ SerializeDataFrameToYAML tableName df id
-
-checkDataFrame :: DataFrame -> Execution (Either ErrorMessage DataFrame)
-checkDataFrame df = liftF $ CheckDataFrame df id
-
-parseFileContent :: FileContent -> Execution (Either ErrorMessage DataFrame)
-parseFileContent fileContent = liftF $ ParseStringOfFile fileContent id
+executeStatement :: UTCTime -> [DataFrame] -> ParsedStatement -> Execution (Either ErrorMessage DataFrame)
+executeStatement currentTime dfs stmt = liftF $ ExecuteStatement currentTime dfs stmt id
 
 -------------------------executeSql--------------------------
-
-executeSelect :: [DataFrame] -> ParsedStatement -> Execution (Either ErrorMessage DataFrame)
-executeSelect dfs stmt = liftF $ ExecuteSelect dfs stmt id
-
-executeInsert :: DataFrame -> ParsedStatement -> Execution (Either ErrorMessage DataFrame)
-executeInsert df stmt = liftF $ ExecuteInsert df stmt id
-
-executeUpdate :: DataFrame -> ParsedStatement -> Execution (Either ErrorMessage DataFrame)
-executeUpdate df stmt = liftF $ ExecuteUpdate df stmt id
-
-executeDelete :: DataFrame -> ParsedStatement -> Execution (Either ErrorMessage DataFrame)
-executeDelete df stmt = liftF $ ExecuteDelete df stmt id
-
--- Constructs table loading steps
-loadAndParseMultipleTables :: [TableName] -> Execution (Either ErrorMessage [DataFrame])
-loadAndParseMultipleTables tables = chain tables []
-  where
-    chain :: [TableName] -> [DataFrame] -> Execution (Either ErrorMessage [DataFrame])
-    chain [] dfs = return $ Right dfs
-    chain (t:ts) dfs = loadFile t >>= \eitherFileContent -> 
-        case eitherFileContent of
-            Right fileContent -> 
-                parseFileContent fileContent >>= \eitherDf ->
-                case eitherDf of
-                    Right df -> 
-                        checkDataFrame df >>= \validationResult ->
-                        case validationResult of
-                            Right validatedDf -> chain ts (dfs ++ [validatedDf])
-                            Left errMsg -> return $ Left errMsg
-                    Left errMsg -> return $ Left errMsg
-            Left errMsg -> return $ Left errMsg
 
 executeSql :: String -> Execution (Either ErrorMessage DataFrame)
 executeSql sql = case parseStatement sql of
     Right stmt@(Select{qeFrom = tables}) -> 
         loadAndParseMultipleTables tables >>= \eitherDfs ->
-        case eitherDfs of
-            Right dfs -> 
-                executeSelect dfs stmt >>= \selectResult ->
-                case selectResult of
-                    Right selectedDf ->
-                        checkDataFrame selectedDf >>= \validationResult ->
-                        case validationResult of
-                            Right validatedDf -> return $ Right validatedDf
-                            Left errMsg -> return $ Left errMsg
-                    Left errMsg -> return $ Left errMsg
-            Left errMsg -> return $ Left errMsg
-
-    Right stmt@(Insert tableName _ _) ->
-        loadFile tableName >>= \fileContent -> 
-        case fileContent of 
-            Right fileContent -> 
-                parseFileContent fileContent >>= \eitherDf ->
-                case eitherDf of
-                    Right df -> 
-                        checkDataFrame df >>= \validationResult ->
-                        case validationResult of
-                            Right validatedDf ->
-                                executeInsert validatedDf stmt >>= \insertResult ->
-                                case insertResult of
-                                    Right updatedDataFrame -> 
-                                        checkDataFrame updatedDataFrame >>= \validationResult ->
-                                        case validationResult of
-                                            Right validatedDf ->
-                                                serializeDataFrameToYAML tableName validatedDf >>= \serializedResult ->
-                                                return $ Right serializedResult
-                                            Left errMsg -> return $ Left errMsg
-                                    Left errMsg -> return $ Left errMsg
-                            Left errMsg -> return $ Left errMsg
-                    Left errMsg -> return $ Left errMsg
-            Left errMsg -> return $ Left errMsg
-
-    Right stmt@(Update tableName _ _) ->
-        loadFile tableName >>= \fileContent -> 
-        case fileContent of 
-            Right fileContent -> 
-                    parseFileContent fileContent >>= \eitherDf ->
-                    case eitherDf of
-                        Right df -> 
-                            checkDataFrame df >>= \validationResult ->
-                            case validationResult of
-                                Right validatedDf ->
-                                    executeUpdate validatedDf stmt >>= \updateResult ->
-                                    case updateResult of
-                                        Right updatedDf -> 
-                                            checkDataFrame updatedDf >>= \validationResult ->
-                                            case validationResult of
-                                                Right validatedDf ->
-                                                    serializeDataFrameToYAML tableName validatedDf >>= \serializedResult ->
-                                                    return $ Right serializedResult
-                                                Left errMsg -> return $ Left errMsg
-                                        Left errMsg -> return $ Left errMsg
+            case eitherDfs of
+                Right dfs -> 
+                    getTime >>= \currentTime ->
+                        executeStatement currentTime dfs stmt >>= \eitherResult ->
+                            case eitherResult of
+                                Right df -> return $ Right df
                                 Left errMsg -> return $ Left errMsg
-                        Left errMsg -> return $ Left errMsg
-            Left errMsg -> return $ Left errMsg
+                Left errMsg -> return $ Left errMsg
 
-    Right stmt@(Delete tableName _) ->
-        loadFile tableName >>= \fileContent -> 
-        case fileContent of 
-            Right fileContent -> 
-                    parseFileContent fileContent >>= \eitherDf ->
-                    case eitherDf of
-                        Right df -> 
-                            checkDataFrame df >>= \validationResult ->
-                            case validationResult of
-                                Right validatedDf -> 
-                                    executeDelete validatedDf stmt >>= \deleteResult ->
-                                    case deleteResult of
-                                        Right deletedDf ->
-                                            checkDataFrame deletedDf >>= \validationResult ->
-                                            case validationResult of
-                                                Right validatedDf ->
-                                                    serializeDataFrameToYAML tableName validatedDf >>= \serializedResult ->
-                                                    return $ Right serializedResult
-                                                Left errMsg -> return $ Left errMsg
-                                        Left errMsg -> return $ Left errMsg
-                                Left errMsg -> return $ Left errMsg
-                        Left errMsg -> return $ Left errMsg
-            Left errMsg -> return $ Left errMsg
-
-    Right stmt@(Now) ->
-        getTime >>= \time -> do
-          df <- displayTime time
-          return $ Right df
+    Right stmt@(Insert tableName _ _) -> handleInsertOrUpdate tableName stmt
+    Right stmt@(Update tableName _ _) -> handleInsertOrUpdate tableName stmt
+    Right stmt@(Delete tableName _) -> handleInsertOrUpdate tableName stmt
 
     Left errorMsg -> return $ Left errorMsg
 
+handleInsertOrUpdate :: TableName -> ParsedStatement -> Execution (Either ErrorMessage DataFrame)
+handleInsertOrUpdate tableName stmt = do
+    eitherDf <- loadFile tableName
+    case eitherDf of
+        Right df -> 
+            getTime >>= \currentTime ->
+                executeStatement currentTime [df] stmt >>= \eitherResult ->
+                    case eitherResult of
+                        Right updatedDf -> saveFile tableName updatedDf >>= return
+                        Left errMsg -> return $ Left errMsg
+        Left errMsg -> return $ Left errMsg
+
+loadAndParseMultipleTables :: [TableName] -> Execution (Either ErrorMessage [DataFrame])
+loadAndParseMultipleTables tables = chain tables []
+  where
+    chain [] dfs = return $ Right dfs
+    chain (t:ts) dfs = do
+        parsedDf <- loadFile t
+        case parsedDf of
+            Right df -> chain ts (dfs ++ [df])
+            Left errMsg -> return $ Left errMsg
 
 
 
@@ -446,8 +348,8 @@ allM f = foldM (\prev nxt -> if prev then f nxt else return False) True
 
 ------------------- Execute SELECT -------------------
 ------------------------------------------------------
-executeSelectOperation :: [DataFrame] -> ParsedStatement -> Either ErrorMessage DataFrame
-executeSelectOperation dataFrames stmt = 
+executeSelectOperation :: [DataFrame] -> ParsedStatement -> UTCTime -> Either ErrorMessage DataFrame
+executeSelectOperation dataFrames stmt currentTime = 
     case stmt of
         Select columnNames tableNames maybeConditions -> do
             let allColumns = concatMap (\(DataFrame cols _) -> cols) dataFrames
@@ -461,7 +363,7 @@ executeSelectOperation dataFrames stmt =
             filteredDataFrame <- applyConditions joinedDataFrame filterConditions
 
             -- select columns
-            projectColumns filteredDataFrame columnNames
+            projectColumnsWithNow filteredDataFrame columnNames currentTime
         _ -> Left "Invalid statement type for selection operation"
     where
         splitConditions :: [Column] -> [Condition] -> ([Condition], [Condition])
@@ -473,6 +375,22 @@ executeSelectOperation dataFrames stmt =
                 
         isColumnName :: [Column] -> String -> Bool
         isColumnName allCols name = any (\(Column colName _) -> colName == name) allCols
+
+        projectColumnsWithNow :: DataFrame -> [ValueExpr] -> UTCTime -> Either ErrorMessage DataFrame
+        projectColumnsWithNow df valueExprs currentTime =
+            if Now `elem` valueExprs then
+                if length valueExprs == 1 then
+                    Right $ DataFrame [Column "current_time" StringType] [[StringValue $ formatTime defaultTimeLocale "%F %T" currentTime]]
+                else
+                    case projectColumns df (filter (/= Now) valueExprs) of
+                        Right (DataFrame columns rows) -> 
+                            let nowColumn = Column "current_time" StringType
+                                nowValue = StringValue $ show currentTime
+                                updatedRows = map (++ [nowValue]) rows
+                            in Right $ DataFrame (columns ++ [nowColumn]) updatedRows
+                        Left errMsg -> Left errMsg
+            else
+                projectColumns df valueExprs
 
 
 
@@ -661,20 +579,15 @@ runExecuteIOTest (Free step) = do
     runExecuteIOTest next
     where
         runStep :: ExecutionAlgebra a -> IO a
-        runStep (ExecuteSelect dfs stmt next) = do
-          let processedData = executeSelectOperation dfs stmt
-          return $ next processedData
-
-        runStep (ExecuteUpdate df stmt next) = do
-          let processedData = executeUpdateOperation df stmt
-          return $ next processedData
-
-        runStep (ExecuteInsert df stmt next) = do
-          let processedData = executeInsertOperation df stmt
-          return $ next processedData
-
-        runStep (ExecuteDelete df stmt next) = do
-          let processedData = executeDeleteOperation df stmt
+        runStep (ExecuteStatement currentTime dfs stmt next) = do
+          let processedData = case stmt of
+                                Select{} -> case executeSelectOperation dfs stmt currentTime of
+                                    Right df -> Lib1.validateDataFrame df
+                                    Left err -> Left err
+                                Insert{} -> executeInsertOperation (head dfs) stmt
+                                Update{} -> executeUpdateOperation (head dfs) stmt
+                                Delete{} -> executeDeleteOperation (head dfs) stmt
+                                _ -> Left "Unsupported operation"
           return $ next processedData
 
         runStep (GetTime next) = do
@@ -682,26 +595,15 @@ runExecuteIOTest (Free step) = do
           let testTime = read "2000-01-01 12:00:00 UTC" :: UTCTime
           return $ next testTime
 
-        runStep (DisplayTime time next) = do
-          let timestr = formatTime defaultTimeLocale "%F %T" time
-          let df = DataFrame [Column "current_time" StringType] [[StringValue timestr]]
-          return $ next df
-
         runStep (LoadFile tableName next) = do
-            let mockFileContent = tableName  -- or any mock content you deem suitable
-            return $ next $ Right mockFileContent
-
-        runStep (ParseStringOfFile tableName next) = do
-          -- Return data from InMemoryTables
           let maybeDataFrame = lookup tableName InMemoryTables.database
           case maybeDataFrame of
-            Just df -> return (next (Right df))
-            Nothing -> return (next (Left "Table not found in InMemoryTables"))
+            Just df -> case Lib1.validateDataFrame df of 
+                Right validDf -> return $ next (Right validDf)
+                Left err -> return $ next (Left err)
+            Nothing -> return $ next (Left "Table not found in InMemoryTables")
 
-        runStep (SerializeDataFrameToYAML _ df next) = do
-          -- Skip for testing
-          return (next df)
-
-        runStep (CheckDataFrame df next) = do
-          let validationResult = Lib1.validateDataFrame df
-          return (next validationResult)
+        runStep (SaveFile _ df next) = do
+          case Lib1.validateDataFrame df of 
+                Right validDf -> return $ next (Right validDf)
+                Left err -> return $ next (Left err)
