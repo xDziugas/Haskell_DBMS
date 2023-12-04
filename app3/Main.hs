@@ -77,17 +77,6 @@ runExecuteIO (Free step) = do
     runExecuteIO next
     where
       runStep :: Lib3.ExecutionAlgebra a -> IO a
-      runStep (Lib3.ExecuteStatement currentTime dfs stmt next) = do
-        let processedData = case stmt of
-                              Select{} -> case Lib3.executeSelectOperation dfs stmt currentTime of
-                                Right df -> Lib1.validateDataFrame df
-                                Left err -> Left err
-                              Insert{} -> Lib3.executeInsertOperation (head dfs) stmt
-                              Update{} -> Lib3.executeUpdateOperation (head dfs) stmt
-                              Delete{} -> Lib3.executeDeleteOperation (head dfs) stmt
-                              _ -> Left "Unsupported operation in runStep"
-        return $ next processedData
-
       runStep (Lib3.GetTime next) = getCurrentTime >>= return . next
 
       runStep (Lib3.LoadFile tableName next) = do
@@ -95,18 +84,13 @@ runExecuteIO (Free step) = do
         fileContentOrError <- try (readFile relativePath) :: IO (Either IOException FileContent)
         case fileContentOrError of
             Right fileContent -> case Lib3.parseContentToDataFrame fileContent of
-              Right parsedDf -> case Lib1.validateDataFrame parsedDf of 
-                  Right validDf -> return $ next (Right validDf)
-                  Left err -> return $ next (Left err) 
+              Right parsedDf -> return $ next (Right parsedDf)
               Left err -> return $ next (Left err) 
             Left ioError -> return $ next (Left $ "no file exists with that name")
 
 
       runStep (Lib3.SaveFile tableName df next) = do
-        case Lib1.validateDataFrame df of 
-              Right validDf -> do
-                returnedDf <- Lib3.writeDataFrameToYAML tableName validDf
-                return $ next (Right returnedDf)
-              Left err -> return $ next (Left err)
+        returnedDf <- Lib3.writeDataFrameToYAML tableName df
+        return $ next (Right returnedDf)
 
         

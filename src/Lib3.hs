@@ -82,7 +82,6 @@ data ExecutionAlgebra next
   = LoadFile TableName ((Either ErrorMessage DataFrame) -> next)
   | GetTime (UTCTime -> next)
   | SaveFile TableName DataFrame ((Either ErrorMessage DataFrame) -> next)
-  | ExecuteStatement UTCTime [DataFrame] ParsedStatement (Either ErrorMessage DataFrame -> next)
   deriving Functor
 
 loadFile :: TableName -> Execution (Either ErrorMessage DataFrame)
@@ -94,9 +93,6 @@ getTime = liftF $ GetTime id
 saveFile :: TableName -> DataFrame -> Execution (Either ErrorMessage DataFrame)
 saveFile tableName df = liftF $ SaveFile tableName df id
 
-executeStatement :: UTCTime -> [DataFrame] -> ParsedStatement -> Execution (Either ErrorMessage DataFrame)
-executeStatement currentTime dfs stmt = liftF $ ExecuteStatement currentTime dfs stmt id
-
 -------------------------executeSql--------------------------
 
 executeSql :: String -> Execution (Either ErrorMessage DataFrame)
@@ -106,28 +102,36 @@ executeSql sql = case parseStatement sql of
             case eitherDfs of
                 Right dfs -> 
                     getTime >>= \currentTime ->
-                        executeStatement currentTime dfs stmt >>= \eitherResult ->
-                            case eitherResult of
-                                Right df -> return $ Right df
-                                Left errMsg -> return $ Left errMsg
+                        case executeSelectOperation dfs stmt currentTime of
+                            Right df -> 
+                                case Lib1.validateDataFrame df of
+                                    Right validDf -> return $ Right validDf
+                                    Left errMsg -> return $ Left errMsg
+                            Left errMsg -> return $ Left errMsg
                 Left errMsg -> return $ Left errMsg
 
-    Right stmt@(Insert tableName _ _) -> handleInsertOrUpdate tableName stmt
-    Right stmt@(Update tableName _ _) -> handleInsertOrUpdate tableName stmt
-    Right stmt@(Delete tableName _) -> handleInsertOrUpdate tableName stmt
+    Right stmt@(Insert tableName _ _) -> executeStatement stmt tableName executeInsertOperation
+
+    Right stmt@(Update tableName _ _) -> executeStatement stmt tableName executeUpdateOperation
+
+    Right stmt@(Delete tableName _) -> executeStatement stmt tableName executeDeleteOperation
 
     Left errorMsg -> return $ Left errorMsg
 
-handleInsertOrUpdate :: TableName -> ParsedStatement -> Execution (Either ErrorMessage DataFrame)
-handleInsertOrUpdate tableName stmt = do
+executeStatement :: ParsedStatement -> TableName -> (DataFrame -> ParsedStatement -> Either ErrorMessage DataFrame) -> Execution (Either ErrorMessage DataFrame)
+executeStatement stmt tableName operation = do
     eitherDf <- loadFile tableName
     case eitherDf of
-        Right df -> 
-            getTime >>= \currentTime ->
-                executeStatement currentTime [df] stmt >>= \eitherResult ->
-                    case eitherResult of
-                        Right updatedDf -> saveFile tableName updatedDf >>= return
+        Right df ->
+            case Lib1.validateDataFrame df of
+                Right validDf -> 
+                    case operation validDf stmt of
+                        Right updatedDf ->
+                            case Lib1.validateDataFrame updatedDf of 
+                                Right validUpdatedDf -> saveFile tableName validUpdatedDf >>= return
+                                Left errMsg -> return $ Left errMsg
                         Left errMsg -> return $ Left errMsg
+                Left errMsg -> return $ Left errMsg
         Left errMsg -> return $ Left errMsg
 
 loadAndParseMultipleTables :: [TableName] -> Execution (Either ErrorMessage [DataFrame])
@@ -137,7 +141,10 @@ loadAndParseMultipleTables tables = chain tables []
     chain (t:ts) dfs = do
         parsedDf <- loadFile t
         case parsedDf of
-            Right df -> chain ts (dfs ++ [df])
+            Right df -> 
+                case Lib1.validateDataFrame df of 
+                    Right validDf -> chain ts (dfs ++ [validDf])
+                    Left errMsg -> return $ Left errMsg
             Left errMsg -> return $ Left errMsg
 
 
@@ -579,17 +586,6 @@ runExecuteIOTest (Free step) = do
     runExecuteIOTest next
     where
         runStep :: ExecutionAlgebra a -> IO a
-        runStep (ExecuteStatement currentTime dfs stmt next) = do
-          let processedData = case stmt of
-                                Select{} -> case executeSelectOperation dfs stmt currentTime of
-                                    Right df -> Lib1.validateDataFrame df
-                                    Left err -> Left err
-                                Insert{} -> executeInsertOperation (head dfs) stmt
-                                Update{} -> executeUpdateOperation (head dfs) stmt
-                                Delete{} -> executeDeleteOperation (head dfs) stmt
-                                _ -> Left "Unsupported operation"
-          return $ next processedData
-
         runStep (GetTime next) = do
           -- Return frozen time for testing
           let testTime = read "2000-01-01 12:00:00 UTC" :: UTCTime
@@ -598,12 +594,8 @@ runExecuteIOTest (Free step) = do
         runStep (LoadFile tableName next) = do
           let maybeDataFrame = lookup tableName InMemoryTables.database
           case maybeDataFrame of
-            Just df -> case Lib1.validateDataFrame df of 
-                Right validDf -> return $ next (Right validDf)
-                Left err -> return $ next (Left err)
+            Just df -> return $ next (Right df)
             Nothing -> return $ next (Left "Table not found in InMemoryTables")
 
         runStep (SaveFile _ df next) = do
-          case Lib1.validateDataFrame df of 
-                Right validDf -> return $ next (Right validDf)
-                Left err -> return $ next (Left err)
+          return $ next (Right df)
