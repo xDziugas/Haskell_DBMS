@@ -93,15 +93,23 @@ data ValueExpr
   | Now
   deriving (Eq, Show)
 
+data Order
+  = ASC String
+  | DESC String
+  deriving(Eq, Show)
+
 data ParsedStatement
   = Select
       { qeSelectList :: [ValueExpr],
         qeFrom :: [TableName],
-        qeWhere :: Maybe [Condition]
+        qeWhere :: Maybe [Condition],
+        qeOrderBy :: Maybe [Order]
       }
   | Insert TableName [String] [String] -- table, columns, values
   | Delete TableName (Maybe [Condition]) -- TableName, Optional Conditions
   | Update TableName [Condition] (Maybe [Condition]) -- TableName, Set Conditions, Optional Where Conditions
+  | Create TableName [String] [String] -- name, columnName, columnType
+  | Drop TableName
   | ShowTables
   | ShowTable TableName
   deriving (Eq, Show)
