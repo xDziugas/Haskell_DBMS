@@ -48,6 +48,11 @@ library:
   - free
   - time
   - transformers
+  - http-client
+  - http-client-tls
+  - http-types
+  - warp
+  - aeson
 
 executables:
   # fp2023-select-all:
@@ -74,9 +79,41 @@ executables:
   #   - extra
   #   - repline
   #   - terminal-size
-  fp2023-manipulate:
+  # fp2023-manipulate:
+  #   main:                Main.hs
+  #   source-dirs:         app3
+  #   ghc-options:
+  #   - -threaded
+  #   - -rtsopts
+  #   - -with-rtsopts=-N
+  #   dependencies:
+  #   - fp2023
+  #   - extra
+  #   - repline
+  #   - terminal-size
+  #   - free
+  #   - time
+  fp2023-sql-client:
     main:                Main.hs
-    source-dirs:         app3
+    source-dirs:         appClient
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - fp2023
+    - extra
+    - repline
+    - time
+    - terminal-size
+    - http-client
+    - http-client-tls
+    - http-types
+    - warp
+    - aeson
+  fp2023-sql-server:
+    main:                Main.hs
+    source-dirs:         appServer
     ghc-options:
     - -threaded
     - -rtsopts
@@ -88,6 +125,11 @@ executables:
     - terminal-size
     - free
     - time
+    - wai
+    - warp
+    - aeson
+    - http-types
+
 
 tests:
   fp2023-test:
