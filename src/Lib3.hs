@@ -100,6 +100,18 @@ saveFile tableName df = liftF $ SaveFile tableName df id
 executeStatement :: UTCTime -> [DataFrame] -> ParsedStatement -> Execution (Either ErrorMessage DataFrame)
 executeStatement currentTime dfs stmt = liftF $ ExecuteStatement currentTime dfs stmt id
 
+
+------------------------saveTableNames-----------------------
+
+saveTableNames :: IO [String]
+saveTableNames = do
+    let dbDir = "db"
+    fileNames <- listDirectory dbDir
+    let tableNames = map dropExtension $ filter (\f -> takeExtension f == ".yaml") fileNames
+    let savePath = "src/tableNames.txt"
+    writeFile savePath (unlines tableNames)
+    return tableNames
+
 -------------------------executeSql--------------------------
 
 executeSql :: String -> Execution (Either ErrorMessage DataFrame)
@@ -610,15 +622,3 @@ runExecuteIOTest (Free step) = do
           case Lib1.validateDataFrame df of 
                 Right validDf -> return $ next (Right validDf)
                 Left err -> return $ next (Left err)
-
-
---saving all of tableNames to a file and returning the talbesNames
-
-saveTableNames :: IO [String]
-saveTableNames = do
-    let dbDir = "db"
-    fileNames <- listDirectory dbDir
-    let tableNames = map dropExtension $ filter (\f -> takeExtension f == ".yaml") fileNames
-    let savePath = "src/tableNames.txt"
-    writeFile savePath (unlines tableNames)
-    return tableNames
