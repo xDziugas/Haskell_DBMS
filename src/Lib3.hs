@@ -35,6 +35,9 @@ import Text.Read (readMaybe)
 import Control.Monad (foldM)
 import Data.Time ( UTCTime, getCurrentTime, formatTime, defaultTimeLocale )
 import qualified Lib1
+import System.Directory (listDirectory)
+import System.FilePath (takeExtension, dropExtension)
+import System.IO (writeFile)
 
 instance FromJSON Table where
   parseJSON = withObject "Table" $ \v ->
@@ -607,3 +610,15 @@ runExecuteIOTest (Free step) = do
           case Lib1.validateDataFrame df of 
                 Right validDf -> return $ next (Right validDf)
                 Left err -> return $ next (Left err)
+
+
+--saving all of tableNames to a file and returning the talbesNames
+
+saveTableNames :: IO [String]
+saveTableNames = do
+    let dbDir = "db"
+    fileNames <- listDirectory dbDir
+    let tableNames = map dropExtension $ filter (\f -> takeExtension f == ".yaml") fileNames
+    let savePath = "src/tableNames.txt"
+    writeFile savePath (unlines tableNames)
+    return tableNames

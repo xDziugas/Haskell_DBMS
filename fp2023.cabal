@@ -41,6 +41,8 @@ library
       aeson
     , base >=4.7 && <5
     , bytestring
+    , directory
+    , filepath
     , free
     , text
     , time
@@ -61,7 +63,9 @@ executable fp2023-manipulate
       aeson
     , base >=4.7 && <5
     , bytestring
+    , directory
     , extra
+    , filepath
     , fp2023
     , free
     , repline
@@ -85,6 +89,8 @@ test-suite fp2023-test
       aeson
     , base >=4.7 && <5
     , bytestring
+    , directory
+    , filepath
     , fp2023
     , free
     , hspec
