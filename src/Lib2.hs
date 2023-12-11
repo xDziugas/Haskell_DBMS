@@ -8,6 +8,7 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# HLINT ignore "Use newtype instead of data" #-}
 {-# HLINT ignore "Use lambda-case" #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Lib2
   ( 
@@ -23,6 +24,7 @@ import Data.Char (isAlphaNum, toLower, isSymbol)
 import DataFrame (DataFrame, Column)
 import InMemoryTables (TableName)
 import Control.Monad (void)
+import GHC.Generics (Generic)
 
 type Database = [(TableName, DataFrame)]
 
@@ -84,14 +86,14 @@ data Condition
   | GreaterThan String String
   | LessEqualThan String String
   | GreaterEqualThan String String
-  deriving (Show, Eq)
+  deriving (Generic, Show, Eq)
 
 data ValueExpr
   = Name String
   | AggMin String
   | AggAvg String
   | Now
-  deriving (Eq, Show)
+  deriving (Generic, Eq, Show)
 
 data ParsedStatement
   = Select
@@ -104,7 +106,7 @@ data ParsedStatement
   | Update TableName [Condition] (Maybe [Condition]) -- TableName, Set Conditions, Optional Where Conditions
   | ShowTables
   | ShowTable TableName
-  deriving (Eq, Show)
+  deriving (Generic, Eq, Show)
 
 -----------------parsers----------------------
 

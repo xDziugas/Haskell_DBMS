@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Lib3
   ( executeSql,
@@ -11,14 +12,13 @@ module Lib3
     executeUpdateOperation,
     executeInsertOperation,
     executeDeleteOperation,
-    runExecuteIOTest
+    runExecuteIOTest,
+    receiveStatement
   )
 where
 
 import Control.Monad.Free (Free (..), liftF)
 import DataFrame (DataFrame(..), Column (..), ColumnType (..), Value (..), Row, DataFrame (..))
-import Data.Time ( UTCTime )
-import DataFrame (Column (..), ColumnType (..), Value (..), DataFrame (..), Row(..))
 import Data.Yaml (decodeFileEither, FromJSON, parseJSON, withObject, (.:), (.:?), YamlException, ParseException)
 import Control.Exception (try, IOException)
 import qualified Data.Yaml as Y
@@ -34,7 +34,10 @@ import Data.Maybe (fromMaybe, isNothing, fromJust)
 import Text.Read (readMaybe)
 import Control.Monad (foldM)
 import Data.Time ( UTCTime, getCurrentTime, formatTime, defaultTimeLocale )
-import qualified Lib1
+import Data.Aeson(decode, encode, parseJSON, ToJSON, FromJSON)
+import GHC.Generics (Generic)
+import qualified Data.ByteString.Lazy as BSL
+import qualified ClientSideTestForTheInstances as CSTFT
 
 instance FromJSON Table where
   parseJSON = withObject "Table" $ \v ->
@@ -70,6 +73,53 @@ instance FromJSON YamlValue where
 
 
 
+
+
+
+--TESTING FOR ENCODING AND DECODING
+
+instance FromJSON ParsedStatement
+instance FromJSON Condition
+instance FromJSON ValueExpr
+
+
+instance ToJSON DataFrame
+instance ToJSON Column
+instance ToJSON ColumnType
+instance ToJSON Value 
+
+
+decodeSentStatement :: BSL.ByteString -> Maybe ParsedStatement
+decodeSentStatement encodedStatement = decode encodedStatement
+
+
+encodeDataFrame :: DataFrame -> BSL.ByteString
+encodeDataFrame df = encode df
+
+receiveStatement :: BSL.ByteString -> Either ErrorMessage String
+receiveStatement encodedStatement = do
+    case decodeSentStatement encodedStatement of 
+        Nothing -> Left $ "wasnt able to decode statement"
+        Just _ -> Right "the sent statement was received!!!!"
+
+
+
+--cia encodinimas dataFram'o ir siuntimas i cliento puse
+sendDataFrame :: String -> IO ()
+sendDataFrame query = do
+    result <- runExecuteIOTest $ executeSql query
+    case result of
+        Left errMsg -> putStrLn $ "Error: " ++ errMsg
+        Right df -> do
+            let encodedDf = encodeDataFrame df
+            case CSTFT.renderdf encodedDf of
+                Left errMsg -> putStrLn $ "Error: " ++ errMsg
+                Right success -> putStrLn success
+
+
+
+
+--PABAIGA
 
 type TableName = String
 type FileContent = String
