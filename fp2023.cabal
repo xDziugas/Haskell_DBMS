@@ -30,6 +30,8 @@ library
       Lib1
       Lib2
       Lib3
+      LibClient
+      LibServer
   other-modules:
       Paths_fp2023
   hs-source-dirs:
@@ -41,19 +43,25 @@ library
       aeson
     , base >=4.7 && <5
     , bytestring
+    , directory
+    , filepath
     , free
+    , http-client
+    , http-client-tls
+    , http-types
     , text
     , time
     , transformers
+    , warp
     , yaml
   default-language: Haskell2010
 
-executable fp2023-manipulate
+executable fp2023-sql-client
   main-is: Main.hs
   other-modules:
       Paths_fp2023
   hs-source-dirs:
-      app3
+      appClient
   default-extensions:
       ImportQualifiedPost
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
@@ -61,13 +69,47 @@ executable fp2023-manipulate
       aeson
     , base >=4.7 && <5
     , bytestring
+    , directory
     , extra
+    , filepath
     , fp2023
     , free
+    , http-client
+    , http-client-tls
+    , http-types
     , repline
     , terminal-size
     , text
     , time
+    , warp
+    , yaml
+  default-language: Haskell2010
+
+executable fp2023-sql-server
+  main-is: Main.hs
+  other-modules:
+      Paths_fp2023
+  hs-source-dirs:
+      appServer
+  default-extensions:
+      ImportQualifiedPost
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      aeson
+    , base >=4.7 && <5
+    , bytestring
+    , directory
+    , extra
+    , filepath
+    , fp2023
+    , free
+    , http-types
+    , repline
+    , terminal-size
+    , text
+    , time
+    , wai
+    , warp
     , yaml
   default-language: Haskell2010
 
@@ -85,6 +127,8 @@ test-suite fp2023-test
       aeson
     , base >=4.7 && <5
     , bytestring
+    , directory
+    , filepath
     , fp2023
     , free
     , hspec
