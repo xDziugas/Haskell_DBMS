@@ -9,11 +9,12 @@ import Network.HTTP.Types (status200, status400)
 import Data.Aeson (encode, eitherDecode)
 import Data.ByteString.Lazy.Char8 (pack)
 import Control.Monad.IO.Class (liftIO)
-import LibServer (startServer, handleRequest, InMemoryData)
+import LibServer (startServer, handleRequest, InMemoryData, decodeSentStatement, encodeDataFrame, getTableNames)
 
 main :: IO ()
 main = do
-    inMemoryData <- LibServer.startServer ["employees", "sales", "products"]
+    tableNames <- getTableNames
+    inMemoryData <- startServer tableNames
     startHttpServer inMemoryData
 
 
@@ -22,11 +23,12 @@ startHttpServer inMemoryData = run 4200 app
   where
     app req respond = do
       body <- strictRequestBody req
-      -- case 'decode' body of
-      case (Left "not implemented") of --TODO
-        Right parsedStmt -> do
+      case decodeSentStatement body of
+        Just parsedStmt -> do
           result <- liftIO $ handleRequest inMemoryData parsedStmt
           case result of
-            Right df -> respond $ responseLBS status200 [("Content-Type", "application/json")] ("encode df")
+            Right df -> respond $ responseLBS status200 [("Content-Type", "application/json")] (encodeDataFrame df)
             Left err -> respond $ responseLBS status400 [("Content-Type", "text/plain")] (pack err)
-        Left err -> respond $ responseLBS status400 [("Content-Type", "text/plain")] (pack $ "Invalid request: " ++ err)
+        Nothing -> respond $ responseLBS status400 [("Content-Type", "text/plain")] (pack "Server failed to decode request")
+
+-- cmd:  -an | find "4200"

@@ -4,7 +4,10 @@ module LibServer
   (
     handleRequest,
     startServer,
-    InMemoryData
+    InMemoryData,
+    decodeSentStatement,
+    encodeDataFrame,
+    getTableNames
   )
 where
 
@@ -132,39 +135,45 @@ handleRequest inMemoryData stmt = do
                     putMVar inMemoryData dfs
                     return $ Left $ "Table not found: " ++ tableName
 
-
-saveTableNames :: IO [String]
-saveTableNames = do
+getTableNames :: [String]
+getTableNames = do
     let dbDir = "db"
     fileNames <- listDirectory dbDir
     let tableNames = map dropExtension $ filter (\f -> takeExtension f == ".yaml") fileNames
-    let savePath = "src/tableNames.txt"
-    writeFile savePath (unlines tableNames)
     return tableNames
+
+-- saveTableNames :: IO [String]
+-- saveTableNames = do
+--     let dbDir = "db"
+--     fileNames <- listDirectory dbDir
+--     let tableNames = map dropExtension $ filter (\f -> takeExtension f == ".yaml") fileNames
+--     let savePath = "db/tableNames.txt"
+--     writeFile savePath (unlines tableNames)
+--     return tableNames
 
 
 
 ---TESTING
 
-receiveStatement :: BSL.ByteString -> Either ErrorMessage String
-receiveStatement encodedStatement = do
-    case decodeSentStatement encodedStatement of 
-        Nothing -> Left "wasnt able to decode statement"
-        Just _ -> Right "the sent statement was received!!!!"
+-- receiveStatement :: BSL.ByteString -> Either ErrorMessage String
+-- receiveStatement encodedStatement = do
+--     case decodeSentStatement encodedStatement of 
+--         Nothing -> Left "wasnt able to decode statement"
+--         Just _ -> Right "the sent statement was received!!!!"
 
 
 
---cia encodinimas dataFram'o ir siuntimas i cliento puse
-sendDataFrame :: String -> IO ()
-sendDataFrame query = do
-    result <- Lib3.runExecuteIOTest $ Lib3.executeSql query
-    case result of
-        Left errMsg -> putStrLn $ "Error: " ++ errMsg
-        Right df -> do
-            let encodedDf = encodeDataFrame df
-            case LibClient.accpetResponseAndRender encodedDf of
-                Left errMsg -> putStrLn $ "Error: " ++ errMsg
-                Right success -> putStrLn success
+-- --cia encodinimas dataFram'o ir siuntimas i cliento puse
+-- sendDataFrame :: String -> IO ()
+-- sendDataFrame query = do
+--     result <- Lib3.runExecuteIOTest $ Lib3.executeSql query
+--     case result of
+--         Left errMsg -> putStrLn $ "Error: " ++ errMsg
+--         Right df -> do
+--             let encodedDf = encodeDataFrame df
+--             case LibClient.accpetResponseAndRender encodedDf of
+--                 Left errMsg -> putStrLn $ "Error: " ++ errMsg
+--                 Right success -> putStrLn success
 
 
 

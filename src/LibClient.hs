@@ -1,5 +1,5 @@
 
-module LibClient (accpetResponseAndRender) where
+module LibClient (sendHttpRequest) where
 
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -37,39 +37,39 @@ encodeStatement = encode
 
 
 
-sendHttpRequest :: String -> String -> IO (Either String DataFrame)
+sendHttpRequest :: String -> String -> IO (Either ErrorMessage DataFrame)
 sendHttpRequest url sqlQuery = do
     manager <- newManager tlsManagerSettings
     initialRequest <- parseRequest url
-    let request = initialRequest
-            { method = methodPost
-            , requestBody = RequestBodyLBS (encode sqlQuery)
-            , requestHeaders = [(hContentType, pack "application/json")]
-            }
 
-    response <- httpLbs request manager
-    -- return $ 'decode' $ responseBody response
-    return $ Left "not implemented"
+    case parseAndEncode sqlQuery of
+        Left errMsg -> return $ Left errMsg
+        Right encodedQuery -> do
+            let request = initialRequest
+                    { method = methodPost
+                    , requestBody = RequestBodyLBS encodedQuery
+                    , requestHeaders = [(hContentType, pack "application/json")]
+                    }
 
+            response <- httpLbs request manager
+            return $ case decodeDataFrame (responseBody response) of
+                Just df -> Right df
+                Nothing -> Left "Failed to decode response"
+
+
+
+parseAndEncode :: String -> Either ErrorMessage BSL.ByteString
+parseAndEncode query = do
+    case parseStatement query of
+        Left errMsg -> Left errMsg
+        Right parsedStatement -> Right $ encodeStatement parsedStatement
 
 --TESTING 
 
-accpetResponseAndRender :: BSL.ByteString -> Either ErrorMessage String
-accpetResponseAndRender encodedDF = do
-    case decodeDataFrame encodedDF of
-        Nothing -> Left $ "something went wrong with decoding dataFrame"
-        Just df -> Right $ Lib1.renderDataFrameAsTable 80 df
+-- accpetResponseAndRender :: BSL.ByteString -> Either ErrorMessage String
+-- accpetResponseAndRender encodedDF = do
+--     case decodeDataFrame encodedDF of
+--         Nothing -> Left $ "something went wrong with decoding dataFrame"
+--         Just df -> Right $ Lib1.renderDataFrameAsTable 80 df
 
 
-
---sitas veikia bet komentuotas nes circular dependency right now
-
--- sendToServer :: String -> Either ErrorMessage String
--- sendToServer querry = do
---     case parseStatement querry of
---         Left errMsg -> Left $ "parsing not working"
---         Right parsedStatement -> do
---             let encodedStatement = encodeStatement parsedStatement
---             case Lib3.receiveStatement encodedStatement of
---                 Left errMsg -> Left $ errMsg
---                 Right succesMsg -> Right $ succesMsg
