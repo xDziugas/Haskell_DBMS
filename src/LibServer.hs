@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 
 module LibServer
   (
@@ -15,6 +16,8 @@ import Lib1 qualified
 import Lib3 qualified
 import Lib2 (parseStatement, ParsedStatement(..), Condition(..), ValueExpr(..))
 import Data.List
+--FOR TESTING
+import LibClient qualified
 
 
 import Control.Concurrent
@@ -22,6 +25,13 @@ import Control.Exception
 import Control.Monad
 import Data.Maybe (mapMaybe)
 import Data.Time.Clock (getCurrentTime)
+import System.Directory (listDirectory)
+import System.FilePath (takeExtension, dropExtension)
+import System.IO (writeFile)
+
+import Data.Aeson(decode, encode, parseJSON, ToJSON, FromJSON)
+import GHC.Generics (Generic)
+import qualified Data.ByteString.Lazy as BSL
 
 type TableName = String
 type FileContent = String
@@ -29,6 +39,22 @@ type ErrorMessage = String
 type InMemoryData = MVar [DataFrameWithTableName]
 
 data DataFrameWithTableName = DataFrameWithTableName TableName DataFrame
+
+instance FromJSON ParsedStatement
+instance FromJSON Condition
+instance FromJSON ValueExpr
+
+
+instance ToJSON DataFrame
+instance ToJSON Column
+instance ToJSON ColumnType
+instance ToJSON Value
+
+decodeSentStatement :: BSL.ByteString -> Maybe ParsedStatement
+decodeSentStatement = decode
+
+encodeDataFrame :: DataFrame -> BSL.ByteString
+encodeDataFrame = encode
 
 -- Server startup
 startServer :: [TableName] -> IO InMemoryData
@@ -93,7 +119,7 @@ handleRequest inMemoryData stmt = do
         processUpdateStatement tableName dfs stmt operation = do
             let maybeDf = find (\(DataFrameWithTableName tn _) -> tn == tableName) dfs
             case maybeDf of
-                Just (DataFrameWithTableName _ df) -> 
+                Just (DataFrameWithTableName _ df) ->
                     case operation df stmt of
                         Right updatedDf -> do
                             let updatedDataFrames = DataFrameWithTableName tableName updatedDf : filter (\(DataFrameWithTableName tn _) -> tn /= tableName) dfs
@@ -105,5 +131,43 @@ handleRequest inMemoryData stmt = do
                 Nothing -> do
                     putMVar inMemoryData dfs
                     return $ Left $ "Table not found: " ++ tableName
+
+
+saveTableNames :: IO [String]
+saveTableNames = do
+    let dbDir = "db"
+    fileNames <- listDirectory dbDir
+    let tableNames = map dropExtension $ filter (\f -> takeExtension f == ".yaml") fileNames
+    let savePath = "src/tableNames.txt"
+    writeFile savePath (unlines tableNames)
+    return tableNames
+
+
+
+---TESTING
+
+receiveStatement :: BSL.ByteString -> Either ErrorMessage String
+receiveStatement encodedStatement = do
+    case decodeSentStatement encodedStatement of 
+        Nothing -> Left "wasnt able to decode statement"
+        Just _ -> Right "the sent statement was received!!!!"
+
+
+
+--cia encodinimas dataFram'o ir siuntimas i cliento puse
+sendDataFrame :: String -> IO ()
+sendDataFrame query = do
+    result <- Lib3.runExecuteIOTest $ Lib3.executeSql query
+    case result of
+        Left errMsg -> putStrLn $ "Error: " ++ errMsg
+        Right df -> do
+            let encodedDf = encodeDataFrame df
+            case LibClient.accpetResponseAndRender encodedDf of
+                Left errMsg -> putStrLn $ "Error: " ++ errMsg
+                Right success -> putStrLn success
+
+
+
+
 
 

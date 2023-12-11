@@ -1,22 +1,26 @@
+{-# LANGUAGE DeriveGeneric #-}
+
 module DataFrame (Column (..), ColumnType (..), Value (..), Row, DataFrame (..)) where
+
+import GHC.Generics (Generic)
 
 data ColumnType
   = IntegerType
   | StringType
   | BoolType
-  deriving (Show, Eq)
+  deriving (Generic, Show, Eq)
 
 data Column = Column String ColumnType
-  deriving (Show, Eq)
+  deriving (Generic, Show, Eq)
 
 data Value
   = IntegerValue Integer
   | StringValue String
   | BoolValue Bool
   | NullValue
-  deriving (Show, Eq)
+  deriving (Generic, Show, Eq)
 
 type Row = [Value]
 
 data DataFrame = DataFrame [Column] [Row]
-  deriving (Show, Eq)
+  deriving (Generic, Show, Eq)

@@ -26,6 +26,9 @@ dependencies:
 - text
 - aeson
 - bytestring
+- directory
+- filepath
+
 
 
 default-extensions:
