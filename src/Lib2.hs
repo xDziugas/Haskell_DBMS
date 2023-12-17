@@ -329,6 +329,9 @@ dropP = Drop <$> (keywordP "DROP TABLE" *> identifierP)
 selectListP :: Parser [ValueExpr]
 selectListP = valueExprP `sepBy` commaSpaceP
 
+selectAllP :: Parser [ValueExpr]
+selectAllP = stringP "*" >> spaceP *> pure [Name "*"]
+
 -- Parses a list of tableNames
 tableNameListP :: Parser [String]
 tableNameListP = identifierP `sepBy` commaSpaceP
@@ -337,7 +340,7 @@ tableNameListP = identifierP `sepBy` commaSpaceP
 selectP :: Parser ParsedStatement
 selectP = do
   void $ keywordP "SELECT"
-  cols <- selectListP
+  cols <- selectAllP <|> selectListP
   void $ keywordP "FROM"
   tables <- tableNameListP
   whereExpr <- optional' (spaceP *> keywordP "WHERE" *> spaceP *> conditionsP)
