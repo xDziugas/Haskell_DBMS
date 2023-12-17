@@ -96,8 +96,28 @@ executables:
   #   - terminal-size
   #   - free
   #   - time
+  fp2023-sql-server:
+    main:                Main.hs
+    source-dirs:         appServer
+    other-modules:       []
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - fp2023
+    - extra
+    - repline
+    - terminal-size
+    - free
+    - time
+    - wai
+    - warp
+    - aeson
+    - http-types
   fp2023-sql-client:
     main:                Main.hs
+    other-modules:       []
     source-dirs:         appClient
     ghc-options:
     - -threaded
@@ -114,24 +134,6 @@ executables:
     - http-types
     - warp
     - aeson
-  fp2023-sql-server:
-    main:                Main.hs
-    source-dirs:         appServer
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - fp2023
-    - extra
-    - repline
-    - terminal-size
-    - free
-    - time
-    - wai
-    - warp
-    - aeson
-    - http-types
 
 
 tests:
