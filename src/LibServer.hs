@@ -19,6 +19,7 @@ import Lib1 qualified
 import Lib3 qualified
 import Lib2 (parseStatement, ParsedStatement(..), Condition(..), ValueExpr(..))
 import Data.List
+import Control.Concurrent.MVar (modifyMVar_)
 --FOR TESTING
 import LibClient qualified
 
@@ -115,6 +116,8 @@ handleRequest inMemoryData stmt = do
         Insert tableName _ _ -> processUpdateStatement tableName dataFrames stmt Lib3.executeInsertOperation
         Update tableName _ _ -> processUpdateStatement tableName dataFrames stmt Lib3.executeUpdateOperation
         Delete tableName _   -> processUpdateStatement tableName dataFrames stmt Lib3.executeDeleteOperation
+        Create tableName columns types -> LibServer.processCreateStatement tableName columns types dataFrames
+        Drop tableName -> LibServer.processDropStatement tableName dataFrames
         _ -> do
             putMVar inMemoryData dataFrames
             return $ Left "Unhandled statement type"
@@ -135,12 +138,58 @@ handleRequest inMemoryData stmt = do
                     putMVar inMemoryData dfs
                     return $ Left $ "Table not found: " ++ tableName
 
+
+
 getTableNames :: [String]
 getTableNames = do
     let dbDir = "db"
     fileNames <- listDirectory dbDir
     let tableNames = map dropExtension $ filter (\f -> takeExtension f == ".yaml") fileNames
     return tableNames
+
+
+------------------------- Process of CREATE and DROP -------------------------
+
+processCreateStatement :: TableName -> [String] -> [String] -> [DataFrameWithTableName] -> IO (Either ErrorMessage DataFrame)
+processCreateStatement tableName columns types dfs = do
+    case createDataFrame columns types of
+        Right newDf -> do
+            let updatedDataFrames = DataFrameWithTableName tableName newDf : dfs
+            putMVar inMemoryData updatedDataFrames
+            return $ Right newDf
+        Left errMsg -> return $ Left errMsg
+
+processDropStatement :: TableName -> [DataFrameWithTableName] -> IO (Either ErrorMessage DataFrame)
+processDropStatement tableName dfs = do
+    let updatedDataFrames = filter (\(DataFrameWithTableName tn _) -> tn /= tableName) dfs
+    let result = deleteTableFile tableName
+    case result of
+        Right () -> do
+            putMVar inMemoryData updatedDataFrames
+            return $ Right $ DataFrame [] []
+        Left errMsg -> return $ Left errMsg
+
+deleteTableFile :: TableName -> Either ErrorMessage ()
+deleteTableFile tableName = 
+    let filePath = "db/" ++ tableName ++ ".yaml"
+    in catch (Right <$> removeFile filePath) handleIOError
+
+handleIOError :: IOException -> IO (Either ErrorMessage ())
+handleIOError e = return $ Left $ "IOError: " ++ show e
+
+createDataFrame :: [String] -> [String] -> Either ErrorMessage DataFrame
+createDataFrame columns types =
+    if length columns == length types then
+        Right $ DataFrame (zipWith Column columns (map parseColumnType types)) []
+    else
+        Left "Number of columns and types do not match"
+
+parseColumnType :: String -> ColumnType
+parseColumnType typeName = case typeName of
+    "IntegerType" -> IntegerType
+    "StringType"  -> StringType
+    "BoolType"    -> BoolType
+    _             -> error "Unsupported column type"
 
 -- saveTableNames :: IO [String]
 -- saveTableNames = do

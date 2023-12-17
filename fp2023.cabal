@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -58,8 +58,6 @@ library
 
 executable fp2023-sql-client
   main-is: Main.hs
-  other-modules:
-      Paths_fp2023
   hs-source-dirs:
       appClient
   default-extensions:
@@ -87,8 +85,6 @@ executable fp2023-sql-client
 
 executable fp2023-sql-server
   main-is: Main.hs
-  other-modules:
-      Paths_fp2023
   hs-source-dirs:
       appServer
   default-extensions:
