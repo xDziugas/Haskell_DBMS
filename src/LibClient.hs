@@ -12,7 +12,7 @@ import DataFrame (DataFrame)
 
 import Data.Aeson(decode, encode, parseJSON, ToJSON, FromJSON)
 import qualified Data.ByteString.Lazy as BSL
-import Lib2 (ParsedStatement(..), Condition(..), ValueExpr(..), parseStatement)
+import Lib2 (ParsedStatement(..), Condition(..), ValueExpr(..), Order(..), parseStatement)
 import qualified Lib1
 import DataFrame (DataFrame(..), Column (..), ColumnType (..), Value (..), Row, DataFrame (..))
 import GHC.Generics (Generic)
@@ -20,6 +20,7 @@ import GHC.Generics (Generic)
 instance ToJSON ParsedStatement
 instance ToJSON Condition
 instance ToJSON ValueExpr
+instance ToJSON Order
 
 instance FromJSON DataFrame
 instance FromJSON Column

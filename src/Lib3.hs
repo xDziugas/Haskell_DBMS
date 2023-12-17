@@ -26,9 +26,9 @@ import Data.Text (pack, unpack)
 import Data.Aeson.Key (fromString)
 import Lib1 qualified
 import qualified Data.ByteString.Char8 as BS
-import Data.List (intercalate, findIndices, findIndex, partition)
+import Data.List (intercalate, findIndices, findIndex, partition, sortBy)
 import Data.Char (toLower)
-import Lib2 (parseStatement, ParsedStatement(..), Condition(..), ValueExpr(..))
+import Lib2 (parseStatement, ParsedStatement(..), Condition(..), ValueExpr(..), Order(..))
 import InMemoryTables qualified
 import Data.Maybe (fromMaybe, isNothing, fromJust)
 import Text.Read (readMaybe)
@@ -358,7 +358,7 @@ allM f = foldM (\prev nxt -> if prev then f nxt else return False) True
 executeSelectOperation :: [DataFrame] -> ParsedStatement -> UTCTime -> Either ErrorMessage DataFrame
 executeSelectOperation dataFrames stmt currentTime = 
     case stmt of
-        Select columnNames tableNames maybeConditions -> do
+        Select columnNames tableNames maybeConditions maybeOrderBy -> do
             let allColumns = concatMap (\(DataFrame cols _) -> cols) dataFrames
             let (joinConditions, filterConditions) = splitConditions allColumns $ fromMaybe [] maybeConditions
 
@@ -370,7 +370,10 @@ executeSelectOperation dataFrames stmt currentTime =
             filteredDataFrame <- applyConditions joinedDataFrame filterConditions
 
             -- select columns
-            projectColumnsWithNow filteredDataFrame columnNames currentTime
+            projectedDataFrame <- projectColumnsWithNow filteredDataFrame columnNames currentTime
+
+            -- apply order by
+            applyOrderBy projectedDataFrame maybeOrderBy
         _ -> Left "Invalid statement type for selection operation"
     where
         splitConditions :: [Column] -> [Condition] -> ([Condition], [Condition])
@@ -573,6 +576,52 @@ getColumnIndicesByName allCols (Name colName) =
 projectRow :: [Int] -> [Value] -> [Value]
 projectRow colIndices row = map (row !!) colIndices
 
+------------------- Order by -------------------
+applyOrderBy :: DataFrame -> Maybe [Order] -> Either ErrorMessage DataFrame
+applyOrderBy df Nothing = Right df
+applyOrderBy df (Just orders) = orderBy df orders
+
+orderBy :: DataFrame -> [Order] -> Either ErrorMessage DataFrame
+orderBy (DataFrame cols rows) orders =
+    case mapM (findColumnIndexAndOrder cols) orders of
+        Right orderSpecs -> Right $ DataFrame cols (sortRows rows orderSpecs)
+        Left errMsg -> Left errMsg
+
+findColumnIndexAndOrder :: [Column] -> Order -> Either ErrorMessage (Int, Bool)
+findColumnIndexAndOrder cols order =
+    let (colName, isAsc) = case order of
+                             Asc name -> (name, True)
+                             Desc name -> (name, False)
+    in case findIndex (\(Column name _) -> name == colName) cols of
+         Just colIndex -> Right (colIndex, isAsc)
+         Nothing -> Left $ "Column not found: " ++ colName
+
+sortRows :: [[Value]] -> [(Int, Bool)] -> [[Value]]
+sortRows rows orderSpecs =
+    sortBy (compareRowsByOrderSpecs orderSpecs) rows
+
+compareRowsByOrderSpecs :: [(Int, Bool)] -> [Value] -> [Value] -> Ordering
+compareRowsByOrderSpecs [] _ _ = EQ
+compareRowsByOrderSpecs ((i, isAsc):os) row1 row2 =
+    let basicOrder = compareValue (row1 !! i) (row2 !! i)
+        order = if isAsc then basicOrder else invertOrder basicOrder
+    in case order of
+        EQ -> compareRowsByOrderSpecs os row1 row2
+        _ -> order
+
+invertOrder :: Ordering -> Ordering
+invertOrder EQ = EQ
+invertOrder LT = GT
+invertOrder GT = LT
+
+compareValue :: Value -> Value -> Ordering
+compareValue (IntegerValue x) (IntegerValue y) = compare x y
+compareValue (StringValue x) (StringValue y) = compare x y
+compareValue (BoolValue x) (BoolValue y) = compare x y
+compareValue NullValue NullValue = EQ
+compareValue NullValue _ = LT
+compareValue _ NullValue = GT
+compareValue _ _ = EQ  
 
 
 

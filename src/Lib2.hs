@@ -1,13 +1,13 @@
 {-# OPTIONS_GHC -Wno-partial-fields #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
-
 {-# HLINT ignore "Use lambda" #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# HLINT ignore "Use newtype instead of data" #-}
 {-# HLINT ignore "Use lambda-case" #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
@@ -17,7 +17,8 @@ module Lib2
     ParsedStatement (..),
     executeStatement,
     Condition(..),
-    ValueExpr(..)
+    ValueExpr(..),
+    Order(..)
   )
 where
 
@@ -26,6 +27,7 @@ import Data.Char (isAlphaNum)
 import DataFrame (DataFrame)
 import InMemoryTables (TableName)
 import Control.Monad (void)
+import GHC.Generics (Generic)
 import Prelude hiding (elem)
 
 import Control.Monad.Trans.State.Strict (State, get, put, evalState, runState)
@@ -86,10 +88,10 @@ executeStatement _ = Left "Not implemented"
 data Order
   = Asc String
   | Desc String
-  deriving (Eq, Show)
+  deriving (Generic, Eq, Show)
 
 data ColumnName = ColumnName String
-  deriving (Eq, Show)
+  deriving (Generic, Eq, Show)
 
 data Condition
   = Equals String String
@@ -97,14 +99,14 @@ data Condition
   | GreaterThan String String
   | LessEqualThan String String
   | GreaterEqualThan String String
-  deriving (Show, Eq)
+  deriving (Generic, Show, Eq)
 
 data ValueExpr
   = Name String
   | AggMin String
   | AggAvg String
   | Now
-  deriving (Eq, Show)
+  deriving (Generic, Eq, Show)
 
 data ParsedStatement
   = Select
@@ -120,7 +122,7 @@ data ParsedStatement
   | ShowTable TableName
   | Create TableName [String] [String] -- name, columns, types
   | Drop TableName
-  deriving (Eq, Show)
+  deriving (Generic, Eq, Show)
 
 -----------------parsers----------------------
 

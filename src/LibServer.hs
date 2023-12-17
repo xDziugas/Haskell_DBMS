@@ -17,7 +17,7 @@ import Data.Time ( UTCTime )
 import DataFrame (Column (..), ColumnType (..), Value (..), DataFrame (..), Row(..))
 import Lib1 qualified
 import Lib3 qualified
-import Lib2 (parseStatement, ParsedStatement(..), Condition(..), ValueExpr(..))
+import Lib2 (parseStatement, ParsedStatement(..), Condition(..), ValueExpr(..), Order(..))
 import Data.List
 import Control.Concurrent.MVar (modifyMVar_)
 --FOR TESTING
@@ -29,7 +29,7 @@ import Control.Exception
 import Control.Monad
 import Data.Maybe (mapMaybe)
 import Data.Time.Clock (getCurrentTime)
-import System.Directory (listDirectory)
+import System.Directory (listDirectory, removeFile)
 import System.FilePath (takeExtension, dropExtension)
 import System.IO (writeFile)
 
@@ -47,6 +47,7 @@ data DataFrameWithTableName = DataFrameWithTableName TableName DataFrame
 instance FromJSON ParsedStatement
 instance FromJSON Condition
 instance FromJSON ValueExpr
+instance FromJSON Order
 
 
 instance ToJSON DataFrame
@@ -116,8 +117,8 @@ handleRequest inMemoryData stmt = do
         Insert tableName _ _ -> processUpdateStatement tableName dataFrames stmt Lib3.executeInsertOperation
         Update tableName _ _ -> processUpdateStatement tableName dataFrames stmt Lib3.executeUpdateOperation
         Delete tableName _   -> processUpdateStatement tableName dataFrames stmt Lib3.executeDeleteOperation
-        Create tableName columns types -> LibServer.processCreateStatement tableName columns types dataFrames
-        Drop tableName -> LibServer.processDropStatement tableName dataFrames
+        Create tableName columns types -> LibServer.processCreateStatement inMemoryData tableName columns types dataFrames
+        Drop tableName -> LibServer.processDropStatement inMemoryData tableName dataFrames
         _ -> do
             putMVar inMemoryData dataFrames
             return $ Left "Unhandled statement type"
@@ -140,7 +141,7 @@ handleRequest inMemoryData stmt = do
 
 
 
-getTableNames :: [String]
+getTableNames :: IO [String]
 getTableNames = do
     let dbDir = "db"
     fileNames <- listDirectory dbDir
@@ -150,8 +151,8 @@ getTableNames = do
 
 ------------------------- Process of CREATE and DROP -------------------------
 
-processCreateStatement :: TableName -> [String] -> [String] -> [DataFrameWithTableName] -> IO (Either ErrorMessage DataFrame)
-processCreateStatement tableName columns types dfs = do
+processCreateStatement :: InMemoryData -> TableName -> [String] -> [String] -> [DataFrameWithTableName] -> IO (Either ErrorMessage DataFrame)
+processCreateStatement inMemoryData tableName columns types dfs = do
     case createDataFrame columns types of
         Right newDf -> do
             let updatedDataFrames = DataFrameWithTableName tableName newDf : dfs
@@ -159,17 +160,17 @@ processCreateStatement tableName columns types dfs = do
             return $ Right newDf
         Left errMsg -> return $ Left errMsg
 
-processDropStatement :: TableName -> [DataFrameWithTableName] -> IO (Either ErrorMessage DataFrame)
-processDropStatement tableName dfs = do
+processDropStatement :: InMemoryData -> TableName -> [DataFrameWithTableName] -> IO (Either ErrorMessage DataFrame)
+processDropStatement inMemoryData tableName dfs = do
     let updatedDataFrames = filter (\(DataFrameWithTableName tn _) -> tn /= tableName) dfs
-    let result = deleteTableFile tableName
+    result <- deleteTableFile tableName
     case result of
         Right () -> do
             putMVar inMemoryData updatedDataFrames
             return $ Right $ DataFrame [] []
         Left errMsg -> return $ Left errMsg
 
-deleteTableFile :: TableName -> Either ErrorMessage ()
+deleteTableFile :: TableName -> IO (Either ErrorMessage ())
 deleteTableFile tableName = 
     let filePath = "db/" ++ tableName ++ ".yaml"
     in catch (Right <$> removeFile filePath) handleIOError
