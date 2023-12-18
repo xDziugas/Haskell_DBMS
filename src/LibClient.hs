@@ -65,12 +65,4 @@ parseAndEncode query = do
         Left errMsg -> Left errMsg
         Right parsedStatement -> Right $ encodeStatement parsedStatement
 
---TESTING 
-
--- accpetResponseAndRender :: BSL.ByteString -> Either ErrorMessage String
--- accpetResponseAndRender encodedDF = do
---     case decodeDataFrame encodedDF of
---         Nothing -> Left $ "something went wrong with decoding dataFrame"
---         Just df -> Right $ Lib1.renderDataFrameAsTable 80 df
-
 

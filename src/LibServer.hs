@@ -76,7 +76,7 @@ loadTableData inMemoryData tableName = do
 
 periodicSave :: InMemoryData -> IO ()
 periodicSave inMemoryData = forever $ do
-    threadDelay 1000000 -- Delay for 1 second
+    threadDelay 10000000 -- Delay for 10 second
     dataFrames <- readMVar inMemoryData
     mapM_ saveTableData dataFrames
 

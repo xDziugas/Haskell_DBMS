@@ -1,0 +1,8 @@
+columns:
+- name: col1
+  dataType: Int
+- name: col2
+  dataType: String
+- name: col3
+  dataType: Bool
+rows:

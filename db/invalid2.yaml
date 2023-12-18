@@ -1,8 +1,0 @@
-columns:
-- name: id
-  dataType: Int
-- name: text
-  dataType: String
-rows:
-- [1, null]
-- [1]
