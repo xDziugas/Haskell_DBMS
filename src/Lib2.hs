@@ -300,7 +300,7 @@ between open close p = do
 orderP :: Parser Order
 orderP = do
   colName <- identifierP
-  orderType <- (keywordP "ASC" *> pure Asc) <|> (keywordP "DESC" *> pure Desc)
+  orderType <- (keywordP "ASC" *> pure Asc) <|> (keywordP "DESC" *> pure Desc) <|> (pure Asc)
   return $ orderType colName
 
 
@@ -330,7 +330,7 @@ selectListP :: Parser [ValueExpr]
 selectListP = valueExprP `sepBy` commaSpaceP
 
 selectAllP :: Parser [ValueExpr]
-selectAllP = stringP "*" >> spaceP *> pure [Name "*"]
+selectAllP = charP '*' >> spaceP *> pure [Name "*"]
 
 -- Parses a list of tableNames
 tableNameListP :: Parser [String]
