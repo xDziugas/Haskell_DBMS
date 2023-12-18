@@ -20,8 +20,6 @@ import Lib3 qualified
 import Lib2 (parseStatement, ParsedStatement(..), Condition(..), ValueExpr(..), Order(..))
 import Data.List
 import Control.Concurrent.MVar (modifyMVar_)
---FOR TESTING
-import LibClient qualified
 
 
 import Control.Concurrent
@@ -117,8 +115,8 @@ handleRequest inMemoryData stmt = do
         Insert tableName _ _ -> processUpdateStatement tableName dataFrames stmt Lib3.executeInsertOperation
         Update tableName _ _ -> processUpdateStatement tableName dataFrames stmt Lib3.executeUpdateOperation
         Delete tableName _   -> processUpdateStatement tableName dataFrames stmt Lib3.executeDeleteOperation
-        Create tableName columns types -> LibServer.processCreateStatement inMemoryData tableName columns types dataFrames
-        Drop tableName -> LibServer.processDropStatement inMemoryData tableName dataFrames
+        Create tableName columns types -> processCreateStatement inMemoryData tableName columns types dataFrames
+        Drop tableName -> processDropStatement inMemoryData tableName dataFrames
         _ -> do
             putMVar inMemoryData dataFrames
             return $ Left "Unhandled statement type"
@@ -191,42 +189,3 @@ parseColumnType typeName = case typeName of
     "StringType"  -> StringType
     "BoolType"    -> BoolType
     _             -> error "Unsupported column type"
-
--- saveTableNames :: IO [String]
--- saveTableNames = do
---     let dbDir = "db"
---     fileNames <- listDirectory dbDir
---     let tableNames = map dropExtension $ filter (\f -> takeExtension f == ".yaml") fileNames
---     let savePath = "db/tableNames.txt"
---     writeFile savePath (unlines tableNames)
---     return tableNames
-
-
-
----TESTING
-
--- receiveStatement :: BSL.ByteString -> Either ErrorMessage String
--- receiveStatement encodedStatement = do
---     case decodeSentStatement encodedStatement of 
---         Nothing -> Left "wasnt able to decode statement"
---         Just _ -> Right "the sent statement was received!!!!"
-
-
-
--- --cia encodinimas dataFram'o ir siuntimas i cliento puse
--- sendDataFrame :: String -> IO ()
--- sendDataFrame query = do
---     result <- Lib3.runExecuteIOTest $ Lib3.executeSql query
---     case result of
---         Left errMsg -> putStrLn $ "Error: " ++ errMsg
---         Right df -> do
---             let encodedDf = encodeDataFrame df
---             case LibClient.accpetResponseAndRender encodedDf of
---                 Left errMsg -> putStrLn $ "Error: " ++ errMsg
---                 Right success -> putStrLn success
-
-
-
-
-
-

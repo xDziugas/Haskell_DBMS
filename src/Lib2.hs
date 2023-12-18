@@ -191,7 +191,7 @@ keywordP w = tokenP $ stringIgnoreCaseP w
 
 -- Parse identifier (alphanumeric name)
 identifierP :: Parser String
-identifierP = tokenP $ some' $ satisfy (\c -> isAlphaNum c || c == '_')
+identifierP = tokenP $ some' $ satisfy (\c -> isAlphaNum c || c == '_' || c == '*')
 
 -- Parses string literal (i.e. "multiple words string"), neveikia, reik uztestuot
 stringLiteralP :: Parser String
