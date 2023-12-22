@@ -227,11 +227,11 @@ nameP = Name <$> identifierP
 
 -- Parses aggregate function MIN(colName)
 aggMinP :: Parser ValueExpr
-aggMinP = AggMin <$> (stringP "MIN" *> optional' spaceP *> charP '(' *> optional' spaceP *> identifierP <* optional' spaceP <* charP ')' <* optional' spaceP)
+aggMinP = AggMin <$> (keywordP "MIN" *> optional' spaceP *> charP '(' *> optional' spaceP *> identifierP <* optional' spaceP <* charP ')' <* optional' spaceP)
 
 -- Parses aggregate function AVG(colName)
 aggAvgP :: Parser ValueExpr
-aggAvgP = AggAvg <$> (stringP "AVG" *> optional' spaceP *> charP '(' *> optional' spaceP *> identifierP <* optional' spaceP <* charP ')' <* optional' spaceP)
+aggAvgP = AggAvg <$> (keywordP "AVG" *> optional' spaceP *> charP '(' *> optional' spaceP *> identifierP <* optional' spaceP <* charP ')' <* optional' spaceP)
 
 -- Parses any value expression (data type ValueExpr contains SELECTED columns)
 valueExprP :: Parser ValueExpr

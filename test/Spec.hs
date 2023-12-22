@@ -114,7 +114,7 @@ main = hspec $ do
       result `shouldBe` expected
     it "handles no columns specified and stops" $ do
       let query = "select from employees;"
-      let expected = Left "Invalid statement"
+      let expected = Left "Character 's' does not satisfy the predicate"
       result <- runExecuteIOTest $ executeSql query
       result `shouldBe` expected
     it "handles null values" $ do
@@ -149,13 +149,13 @@ main = hspec $ do
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
     it "doesn't let column names be seperated by spaces" $ do
-      let query = "select id name ; surname from employees;"
-      let expected = Left "Invalid statement"
+      let query = "select id name surname from employees;"
+      let expected = Left "Character 's' does not satisfy the predicate"
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
     it "doesn't let aggregate function be seperated by spaces" $ do
       let query = "select min id from employees;"
-      let expected = Left "Invalid statement"
+      let expected = Left "Character 's' does not satisfy the predicate"
       result <- runExecuteIOTest $ Lib3.executeSql query
       result `shouldBe` expected
     it "returns an empty DataFrame for a valid query with no matching conditions" $ do
@@ -311,7 +311,7 @@ main = hspec $ do
       result `shouldBe` expected
     it "returns an error when inserting a row without specifying column names" $ do
       let query = "INSERT INTO employees VALUES (3, guga, buga);"
-      let expected = Left "Invalid statement"
+      let expected = Left "Character 'I' does not satisfy the predicate"
       result <- runExecuteIOTest $ executeSql query
       result `shouldBe` expected
     describe "NOW Operations" $ do
@@ -415,7 +415,7 @@ main = hspec $ do
         result `shouldBe` expected
     it "handles wrong delete usage" $ do
         let query = "elete from employees   where id = 2 ;"
-        let expected = Left "Invalid statement"
+        let expected = Left "Character 'e' does not satisfy the predicate"
         result <- runExecuteIOTest $ Lib3.executeSql query
         result `shouldBe` expected
     it "leaves the table unchanged when a condition is not met" $ do
